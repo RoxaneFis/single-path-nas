@@ -23,10 +23,12 @@ task = conn.create_task(args.filename, 'docker-nvidia-network', 1)
 # Store if an error happened during the process
 error_happened = False
 try:
+    import pdb 
+    #pdb.set_trace()
     # Create a resource bucket and add an input file
     #python files
     input_bucket = conn.retrieve_bucket('input-resource-nas')
-    input_bucket.sync_directory("/Users/roxanefischer/Documents/cours/3A/Stage_ML/single-path-nas/single-path-nas")
+    input_bucket.sync_directory("/Users/roxanefischer/Desktop/single_path_nas/single-path-nas")
 
     image_net = conn.retrieve_bucket('tiny-imagenet')
     output_bucket = conn.retrieve_bucket('output')
@@ -47,13 +49,19 @@ try:
     task.constants['DOCKER_CMD'] = "/bin/bash -c \"lambda_val=0.020; python /job/nas-search/search_main.py \
                                                             --use_tpu=False \
                                                             --data_dir=/job/image_net \
-                                                            --model_dir=/job/models \
-                                                            --num_label_classes=200 \
-                                                            --num_train_images=100000 --num_eval_images=10000 \
+                                                            --model_dir=/job/models/lambda-val-${lambda_val} \
+                                                            --export_dir=None \
+                                                            --mode=train_and_eval \
+                                                            --train_steps=785 \
+                                                            --warmup_steps=491 \
+                                                            --input_image_size=64 \
                                                             --eval_batch_size=1024 --train_batch_size=1024 \
-                                                            --input_image_size=64  warmup_steps=491 \
-                                                            --train_steps=785 --steps_per_eval=80 --iterations_per_loop=10000 \
-                                                            --base_learning_rate=0.064 --momentum=0.9\""
+                                                            --num_train_images=100000 --num_eval_images=10000 \
+                                                            --num_label_classes=200 \
+                                                            --steps_per_eval=80 --iterations_per_loop=10000 \
+                                                            --base_learning_rate=0.016 --momentum=0.9 \
+                                                            --moving_average_decay=0.9999 --weight_decay=1e-5 \
+                                                            --label_smoothing=0.1 --dropout_rate=0.2 --runtime_lambda_val=${lambda_val}\""
 
     # Submit the task to the Api, that will launch it on the cluster
     task.submit()
@@ -87,8 +95,8 @@ try:
             print()
             print(sdout)
         
-        sys.stdout.write(task.fresh_stdout())
-        sys.stderr.write(task.fresh_stderr())
+        #sys.stdout.write(task.fresh_stdout())
+        #sys.stderr.write(task.fresh_stderr())
 
     # Display errors on failure
     if task.state == 'Failure':

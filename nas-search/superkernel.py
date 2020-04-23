@@ -90,6 +90,8 @@ class DepthwiseConv2DMasked(tf.keras.layers.DepthwiseConv2D):
     else:
 
       # our implementation is channels_last
+
+      # TODO RF : change it for GPUs
       assert self.data_format == 'channels_last'
       assert len(input_shape) == 4
 

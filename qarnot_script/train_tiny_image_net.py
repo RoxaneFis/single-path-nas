@@ -26,7 +26,7 @@ try:
     # Create a resource bucket and add an input file
     #python files
     input_bucket = conn.retrieve_bucket('input-resource-nas')
-    input_bucket.sync_directory("/Users/roxanefischer/Documents/cours/3A/Stage_ML/single-path-nas/single-path-nas")
+    input_bucket.sync_directory("//Users/roxanefischer/Desktop/single_path_nas/single-path-nas")
 
     image_net = conn.retrieve_bucket('tiny-imagenet')
     output_bucket = conn.retrieve_bucket('output')
@@ -47,17 +47,19 @@ try:
     task.constants['DOCKER_CMD'] = "/bin/bash -c \"lambda_val=0.020; python /job/train-final/main.py \
                                                             --use_tpu=False \
                                                             --data_dir=/job/image_net \
-                                                            --parse_search_dir=/job/models \
-                                                            --model_dir=/job/final \
-                                                            --num_label_classes=200 \
-                                                            --num_train_images=100000 --num_eval_images=10000 \
-                                                            --eval_batch_size=1024 --train_batch_size=1024 \
+                                                            --parse_search_dir=/job/models/lambda-val-${lambda_val} \
+                                                            --model_dir=/job/final/lambda-val-${lambda_val} \
+                                                            --export_dir=None \
+                                                            --mode=train_and_eval \
+                                                            --train_steps=35000 \
                                                             --input_image_size=64 \
-                                                            --train_steps=35000 --steps_per_eval=2000 \
-                                                            --base_learning_rate=0.01
-    default=0.016, --iterations_per_loop=35000\""
-
-
+                                                            --eval_batch_size=1024 --train_batch_size=1024 \
+                                                            --num_train_images=100000 --num_eval_images=10000 \
+                                                            --num_label_classes=200 \
+                                                            --steps_per_eval=2000 --iterations_per_loop=35000 \
+                                                            --base_learning_rate=0.016 --momentum=0.9 \
+                                                            --moving_average_decay=0.9999 --weight_decay=1e-5 \
+                                                            --label_smoothing=0.1 --dropout_rate=0.2 --runtime_lambda_val=${lambda_val}\""
     
     
     # Submit the task to the Api, that will launch it on the cluster

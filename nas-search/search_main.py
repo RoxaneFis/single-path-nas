@@ -157,6 +157,7 @@ flags.DEFINE_string(
     'bigtable_column_qualifier', 'example',
     'The column name storing TFExamples.')
 
+#TODO RF : channel_first
 flags.DEFINE_string(
     'data_format', default='channels_last',
     help=('A flag to override the data format used in the model. The value'
