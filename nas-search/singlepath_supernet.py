@@ -27,6 +27,9 @@ import json
 # dstamoulis: definition of masked layer (DepthwiseConv2DMasked)
 from superkernel import *
 
+import pdb
+#pdb.set_trace()
+
 GlobalParams = collections.namedtuple('GlobalParams', [
     'batch_norm_momentum', 'batch_norm_epsilon', 'dropout_rate', 'data_format',
     'num_classes', 'depth_multiplier', 'depth_divisor', 'min_depth', 'search_space',
@@ -106,6 +109,7 @@ def round_filters(filters, global_params):
 
 
 class MBConvBlock(object):
+  #pdb.set_trace()
   """A class of MnasNet/MobileNetV2 Inveretd Residual Bottleneck.
 
   Attributes:
@@ -241,6 +245,8 @@ class MBConvBlock(object):
     return tf.sigmoid(se_tensor) * input_tensor
 
   def call(self, inputs, runtime, training=True):
+    import pdb
+    #pdb.set_trace()
     """Implementation of MBConvBlock call().
 
     Args:
@@ -428,6 +434,8 @@ class SinglePathSuperNet(tf.keras.Model):
           for k, v in six.iteritems(block.endpoints):
             self.endpoints['block_%s/%s' % (idx, k)] = v
     # Calls final layers and returns logits.
+    import pdb
+    #pdb.set_trace()
     with tf.variable_scope('mnas_head'):
       outputs = tf.nn.relu(
           self._bn1(self._conv_head(outputs), training=training))

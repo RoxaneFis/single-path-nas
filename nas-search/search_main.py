@@ -82,6 +82,12 @@ flags.DEFINE_integer(
     help=('The number of steps to use for search. Default is 10008'
           ' with batch size 1024 and with warmup steps 6255'))
 
+#Roxane Fischer Added
+flags.DEFINE_integer(
+    'warmup_steps', default=491,
+    help=('Number of steps before end of dropout'))
+
+            
 flags.DEFINE_integer(
     'input_image_size', default=224, help='Input image size.')
 
@@ -278,7 +284,7 @@ def nas_model_fn(features, labels, mode, params):
   has_moving_average_decay = (FLAGS.moving_average_decay > 0)
   # This is essential, if using a keras-derived model.
   K.set_learning_phase(is_training)
-  tf.logging.info('Using open-source implementation for NAS definition.')
+  tf.logging.warn('Using open-source implementation for NAS definition.')
   override_params = {}
   if FLAGS.batch_norm_momentum:
     override_params['batch_norm_momentum'] = FLAGS.batch_norm_momentum
@@ -299,7 +305,7 @@ def nas_model_fn(features, labels, mode, params):
 
 
   global_step = tf.train.get_global_step()
-  warmup_steps = 6255
+  warmup_steps = FLAGS.warmup_steps
   dropout_rate = nas_utils.build_dropout_rate(global_step, warmup_steps)
 
   logits, runtime_val, indicators = supernet_macro.build_supernet(
@@ -515,7 +521,7 @@ def nas_model_fn(features, labels, mode, params):
     eval_metrics = (metric_fn, [labels, logits])
 
   num_params = np.sum([np.prod(v.shape) for v in tf.trainable_variables()])
-  tf.logging.info('number of trainable parameters: {}'.format(num_params))
+  tf.logging.warn('number of trainable parameters: {}'.format(num_params))
 
   def _scaffold_fn():
     saver = tf.train.Saver(restore_vars_dict)
@@ -604,14 +610,17 @@ def export(est, export_dir, post_quantize=True):
     images = tf.placeholder(shape=input_shape, dtype=tf.float32)
     return tf.estimator.export.ServingInputReceiver(images, {'images': images})
 
-  tf.logging.info('Starting to export model.')
+  tf.logging.warn('Starting to export model.')
   est.export_saved_model(
       export_dir_base=export_dir,
       serving_input_receiver_fn=lite_image_serving_input_fn)
 
   subfolder = sorted(tf.gfile.ListDirectory(export_dir), reverse=True)[0]
-  tf.logging.info('Starting to export TFLite.')
-  converter = tf.lite.TFLiteConverter.from_saved_model(
+  tf.logging.warn('Starting to export TFLite.')
+  import pdb 
+  #pdb.set_trace()
+  #converter = tf.lite.TFLiteConverter.from_saved_model(
+  converter = tf.contrib.lite.TFLiteConverter.from_saved_model(
       os.path.join(export_dir, subfolder),
       input_arrays=['truediv'],
       output_arrays=['logits'])
@@ -620,7 +629,7 @@ def export(est, export_dir, post_quantize=True):
   tf.gfile.GFile(tflite_file, 'wb').write(tflite_model)
 
   if post_quantize:
-    tf.logging.info('Starting to export quantized TFLite.')
+    tf.logging.warn('Starting to export quantized TFLite.')
     converter = tf.lite.TFLiteConverter.from_saved_model(
         os.path.join(export_dir, subfolder),
         input_arrays=['truediv'],
@@ -669,7 +678,7 @@ def main(unused_argv):
   # Input pipelines are slightly different (with regards to shuffling and
   # preprocessing) between training and evaluation.
   if FLAGS.bigtable_instance:
-    tf.logging.info('Using Bigtable dataset, table %s', FLAGS.bigtable_table)
+    tf.logging.warn('Using Bigtable dataset, table %s', FLAGS.bigtable_table)
     select_train, select_eval = _select_tables_from_flags()
     imagenet_train, imagenet_eval = [imagenet_input.ImageNetBigtableInput(
         is_training=is_training,
@@ -680,9 +689,9 @@ def main(unused_argv):
                                       (False, select_eval)]]
   else:
     if FLAGS.data_dir == FAKE_DATA_DIR:
-      tf.logging.info('Using fake dataset.')
+      tf.logging.warn('Using fake dataset.')
     else:
-      tf.logging.info('Using dataset: %s', FLAGS.data_dir)
+      tf.logging.warn('Using dataset: %s', FLAGS.data_dir)
     imagenet_train, imagenet_eval = [
         imagenet_input.ImageNetInput(
             is_training=is_training,
@@ -699,7 +708,7 @@ def main(unused_argv):
     # Run evaluation when there's a new checkpoint
     for ckpt in evaluation.checkpoints_iterator(
         FLAGS.model_dir, timeout=FLAGS.eval_timeout):
-      tf.logging.info('Starting to evaluate.')
+      tf.logging.warn('Starting to evaluate.')
       try:
         start_timestamp = time.time()  # This time will include compilation time
         eval_results = nas_est.evaluate(
@@ -707,13 +716,13 @@ def main(unused_argv):
             steps=eval_steps,
             checkpoint_path=ckpt)
         elapsed_time = int(time.time() - start_timestamp)
-        tf.logging.info('Eval results: %s. Elapsed seconds: %d',
+        tf.logging.warn('EvAl results: %s. Elapsed seconds: %d',
                         eval_results, elapsed_time)
 
         # Terminate eval job when final checkpoint is reached
         current_step = int(os.path.basename(ckpt).split('-')[1])
         if current_step >= FLAGS.train_steps:
-          tf.logging.info(
+          tf.logging.warn(
               'Evaluation finished after training step %d', current_step)
           break
 
@@ -722,7 +731,7 @@ def main(unused_argv):
         # sometimes the TPU worker does not finish initializing until long after
         # the CPU job tells it to start evaluating. In this case, the checkpoint
         # file could have been deleted already.
-        tf.logging.info(
+        tf.logging.warn(
             'Checkpoint %s no longer exists, skipping checkpoint', ckpt)
 
     if FLAGS.export_dir:
@@ -730,7 +739,7 @@ def main(unused_argv):
   else:   # FLAGS.mode == 'train' or FLAGS.mode == 'train_and_eval'
     current_step = estimator._load_global_step_from_checkpoint_dir(FLAGS.model_dir)  # pylint: disable=protected-access,line-too-long
 
-    tf.logging.info(
+    tf.logging.warn(
         'Training for %d steps (%.2f epochs in total). Current'
         ' step %d.', FLAGS.train_steps,
         FLAGS.train_steps / params['steps_per_epoch'], current_step)
@@ -759,28 +768,27 @@ def main(unused_argv):
         nas_est.train(
             input_fn=imagenet_train.input_fn, max_steps=next_checkpoint)
         current_step = next_checkpoint
-
-        tf.logging.info('Finished training up to step %d. Elapsed seconds %d.',
-                        next_checkpoint, int(time.time() - start_timestamp))
-
+        tf.logging.warn('Finished training up to step %d. Elapsed seconds %d.',next_checkpoint, int(time.time() - start_timestamp))
         # Evaluate the model on the most recent model in --model_dir.
         # Since evaluation happens in batches of --eval_batch_size, some images
         # may be excluded modulo the batch size. As long as the batch size is
         # consistent, the evaluated images are also consistent.
-        tf.logging.info('Starting to evaluate.')
+        tf.logging.warn('STarting to evaluate.')
+        import pdb 
+        #pdb.set_trace()
         eval_results = nas_est.evaluate(
             input_fn=imagenet_eval.input_fn,
             steps=FLAGS.num_eval_images // FLAGS.eval_batch_size)
-        tf.logging.info('Eval results at step %d: %s',
+        tf.logging.warn('EVal results at step %d: %s',
                         next_checkpoint, eval_results)
 
       elapsed_time = int(time.time() - start_timestamp)
-      tf.logging.info('Finished training up to step %d. Elapsed seconds %d.',
+      tf.logging.warn('Finished training up to step %d. Elapsed seconds %d.',
                       FLAGS.train_steps, elapsed_time)
       if FLAGS.export_dir:
         export(nas_est, FLAGS.export_dir, FLAGS.post_quantize)
 
-
 if __name__ == '__main__':
+  #tf.logging.set_verbosity(tf.logging.WARN)
   tf.logging.set_verbosity(tf.logging.INFO)
   app.run(main)

@@ -26,7 +26,7 @@ def Indicator(x):
   #           int32, int64, complex64, complex128
   #return tf.stop_gradient((x>=0) - tf.sigmoid(x)) + tf.sigmoid(x)
   return tf.stop_gradient(tf.to_float(x>=0) - tf.sigmoid(x)) + tf.sigmoid(x)
-
+#???? sigmoid
 
 def sample_gumbel(shape, eps=1e-20):
   U = tf.random_uniform(shape, minval=0, maxval=1)
@@ -72,6 +72,8 @@ class DepthwiseConv2DMasked(tf.keras.layers.DepthwiseConv2D):
 
 
   def build(self, input_shape):
+    import pdb
+    #pdb.set_trace()
 
     # NOTE: necessary for defining a Keras layer!
     # https://keras.io/layers/writing-your-own-keras-layers/
@@ -92,7 +94,7 @@ class DepthwiseConv2DMasked(tf.keras.layers.DepthwiseConv2D):
       assert len(input_shape) == 4
 
       kernel_shape = self.depthwise_kernel.shape
-      assert kernel_shape[-1] == 1 # I don't think we handle depth mult
+      assert kernel_shape[-1] == 1 # I don't think we handle depth mult ???
       assert kernel_shape[0] == 5 # you cannot mask out if it is 3x3 already! 
       assert kernel_shape[1] == 5 # you cannot mask out if it is 3x3 already! 
 
@@ -175,6 +177,8 @@ class DepthwiseConv2DMasked(tf.keras.layers.DepthwiseConv2D):
 
 
   def call(self, inputs, total_runtime, training=None):
+    #import pdb
+    #pdb.set_trace()
     outputs = K.depthwise_conv2d(
         inputs,
         self.depthwise_kernel_masked,
