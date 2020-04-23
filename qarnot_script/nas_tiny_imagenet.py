@@ -6,7 +6,7 @@ import os
 
 # Create a connection, from which all other objects will be derived
 # Enter client token here
-conn = qarnot.Connection('/Users/roxanefischer/Desktop/single_path_nas/single-path-nas/samples.conf')
+conn = qarnot.Connection('/Users/roxanefischer/Desktop/single_path_nas/single-path-nas/qarnot_script/samples.conf')
 
 import argparse
 
@@ -52,7 +52,8 @@ try:
                                                             --num_train_images=100000 --num_eval_images=10000 \
                                                             --eval_batch_size=1024 --train_batch_size=1024 \
                                                             --input_image_size=64  warmup_steps=491 \
-                                                            --train_steps=785 --steps_per_eval=80 --iterations_per_loop=10000\""
+                                                            --train_steps=785 --steps_per_eval=80 --iterations_per_loop=10000 \
+                                                            --base_learning_rate=0.064 --momentum=0.9\""
 
     # Submit the task to the Api, that will launch it on the cluster
     task.submit()

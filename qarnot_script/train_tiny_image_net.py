@@ -6,7 +6,7 @@ import os
 
 # Create a connection, from which all other objects will be derived
 # Enter client token here
-conn = qarnot.Connection('/Users/roxanefischer/Desktop/single_path_nas/single-path-nas/samples.conf')
+conn = qarnot.Connection('/Users/roxanefischer/Desktop/single_path_nas/single-path-nas/qarnot_script/samples.conf')
 
 import argparse
 
@@ -53,7 +53,9 @@ try:
                                                             --num_train_images=100000 --num_eval_images=10000 \
                                                             --eval_batch_size=1024 --train_batch_size=1024 \
                                                             --input_image_size=64 \
-                                                            --train_steps=35000 --steps_per_eval=2000 --iterations_per_loop=35000\""
+                                                            --train_steps=35000 --steps_per_eval=2000 \
+                                                            --base_learning_rate=0.01
+    default=0.016, --iterations_per_loop=35000\""
 
 
     
