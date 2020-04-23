@@ -1,1 +1,5 @@
 *.pyc
+samples.conf
+/qarnot_script/qarnot/*
+
+
