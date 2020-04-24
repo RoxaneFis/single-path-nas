@@ -94,12 +94,21 @@ def convnet_encoder(network):
       if layer_type == 'skip':
         assert block_cnt not in stride2_layers
       else:
+        ##FIXME RF : error on the decoding???
+        # if layer_type == '3x3-3':
+        #   kernel_sample, exp_ratio_sample = 'k3', 'e3'
+        # elif layer_type == '3x3-6':
+        #   kernel_sample, exp_ratio_sample = 'k3', 'e3'
+        # elif layer_type == '5x5-3':
+        #   kernel_sample, exp_ratio_sample = 'k5', 'e6'
+        # elif layer_type == '5x5-6':
+        #   kernel_sample, exp_ratio_sample = 'k5', 'e6'
         if layer_type == '3x3-3':
           kernel_sample, exp_ratio_sample = 'k3', 'e3'
         elif layer_type == '3x3-6':
-          kernel_sample, exp_ratio_sample = 'k3', 'e3'
+          kernel_sample, exp_ratio_sample = 'k3', 'e6'
         elif layer_type == '5x5-3':
-          kernel_sample, exp_ratio_sample = 'k5', 'e6'
+          kernel_sample, exp_ratio_sample = 'k5', 'e3'
         elif layer_type == '5x5-6':
           kernel_sample, exp_ratio_sample = 'k5', 'e6'
 
