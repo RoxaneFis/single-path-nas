@@ -177,4 +177,9 @@ def build_supernet(images, model_name, training, override_params=None, dropout_r
     logits, total_runtime = model(images, training=training)
 
   logits = tf.identity(logits, 'logits')
-  return logits, total_runtime, model.indicators
+  return logits, total_runtime, {'t':model.thresholds, \
+                                 'norm':model.norms, \
+                                 'diff': model.differences, \
+                                 'i': model.indicators}
+
+  #return logits, total_runtime, model.indicators

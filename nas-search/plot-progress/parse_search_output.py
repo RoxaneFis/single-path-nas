@@ -13,9 +13,10 @@ def parse_indicators_single_path_nas(path, tf_size_guidance):
 
   # Show all tags in the log file
   tags = event_acc.Tags()['scalars']
-  labels = ['t5x5_','t50c_','t100c_']
+  labels = ['i5x5_','i50c_','i100c_']
   inds = []
-  for idx in range(20):
+  for idx in range(8):
+  # RF for idx in range(20):
     layer_row = []
     for label_ in labels:
       summary_label_ = label_ + str(idx+1) 
@@ -30,7 +31,8 @@ def encode_single_path_nas_arch(inds, hard=False):
   print('Sampling network')
   network = []
   candidate_ops = ['3x3-3', '3x3-6', '5x5-3', '5x5-6', 'skip']
-  for layer_cnt in range(20):
+  # RF for layer_cnt in range(20):
+  for layer_cnt in range(8):
 
     inds_row = inds[layer_cnt]
     print(inds_row)
@@ -89,7 +91,9 @@ def convnet_encoder(network):
   block_cnt = 0
   # first bottleneck
   blocks_args = ['r1_k3_s11_e1_i32_o16_noskip']
-  for stage_idx in range(5): # 5 groups of up to 4 layers
+  # RF
+  #for stage_idx in range(4):
+  for stage_idx in range(2): # 5 groups of up to 4 layers
     for inner_block in range(4):
       layer_type = network[block_cnt]
       if layer_type == 'skip':

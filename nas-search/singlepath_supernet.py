@@ -408,6 +408,10 @@ class SinglePathSuperNet(tf.keras.Model):
     outputs = None
     self.endpoints = {}
     self.indicators = {}
+    ##RF Added
+    self.thresholds = {}
+    self.norms = {}
+    self.differences = {}
 
     # rest of runtime (i.e., stem, head, logits, block0, block21)
     total_runtime = 19.5999
@@ -426,9 +430,22 @@ class SinglePathSuperNet(tf.keras.Model):
         # the indicator decisions 
         if block._depthwise_conv.custom:
           self.indicators['block_%s' % idx] = {
-                  'd5x5': block._depthwise_conv.d5x5,
-                  'd50c': block._depthwise_conv.d50c,
-                  'd100c': block._depthwise_conv.d100c}
+                  'i5x5': block._depthwise_conv.d5x5,
+                  'i50c': block._depthwise_conv.d50c,
+                  'i100c': block._depthwise_conv.d100c}
+          ## RF Added
+          self.differences['block_%s' % idx] = {
+                  'diff5x5': block._depthwise_conv.x5x5,
+                  'diff50c': block._depthwise_conv.x50c,
+                  'diff100c': block._depthwise_conv.x100c}
+          self.thresholds['block_%s' % idx] = {
+                  't5x5': block._depthwise_conv.t5x5,
+                  't50c': block._depthwise_conv.t50c,
+                  't100c': block._depthwise_conv.t100c}
+          self.norms['block_%s' % idx] = {
+                  'norm5x5': block._depthwise_conv.norm5x5,
+                  'norm50c': block._depthwise_conv.norm50c,
+                  'norm100c': block._depthwise_conv.norm100c}
 
         if block.endpoints:
           for k, v in six.iteritems(block.endpoints):

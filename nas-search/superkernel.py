@@ -64,6 +64,8 @@ class DepthwiseConv2DMasked(tf.keras.layers.DepthwiseConv2D):
         self.R100c = K.cast_to_floatx(self.runtimes[3]) # 100% of the 5x5
         self.R5x5 = K.cast_to_floatx(self.runtimes[3]) # 5x5 for 100%
         self.R3x3 = K.cast_to_floatx(self.runtimes[1]) # 3x3 for 100%
+        #FIXME RF : why not self.runtimes[0]??
+
       else:
         self.R50c = K.cast_to_floatx(0.0)
         self.R100c = K.cast_to_floatx(0.0)
@@ -135,6 +137,7 @@ class DepthwiseConv2DMasked(tf.keras.layers.DepthwiseConv2D):
       self.norm5x5 = tf.norm(kernel_5x5)
 
       x5x5 = self.norm5x5 - self.t5x5
+      self.x5x5=x5x5
       if self.dropout_rate is not None: # zero-out with drop_prob_ 
         self.d5x5 = tf.nn.dropout(Indicator(x5x5), self.dropout_rate)
       else:
@@ -149,8 +152,8 @@ class DepthwiseConv2DMasked(tf.keras.layers.DepthwiseConv2D):
       self.norm50c = tf.norm(kernel_50c)
       self.norm100c = tf.norm(kernel_100c)
 
-
       x100c = self.norm100c - self.t100c
+      self.x100c=x100c
       if self.dropout_rate is not None: # noise to add
         self.d100c = tf.nn.dropout(Indicator(x100c), self.dropout_rate)
       else:
@@ -158,13 +161,17 @@ class DepthwiseConv2DMasked(tf.keras.layers.DepthwiseConv2D):
 
 
       if self.strides[0] == 1 and len(self.runtimes) == 5:
+        ##NOTE : stride = 1 => skip-path
         x50c = self.norm50c - self.t50c
+        self.x50c=x50c
         if self.dropout_rate is not None: # noise to add
           self.d50c = tf.nn.dropout(Indicator(x50c), self.dropout_rate)
         else:
           self.d50c = Indicator(x50c) 
-      else: # you cannot drop all layers!
+      else: # you cannot drop all layers! (no skip-path)
         self.d50c = 1.0
+        self.x50c=1.0
+
 
       self.depthwise_kernel_masked = \
             self.d50c * (kernel_50c + self.d100c *kernel_100c)

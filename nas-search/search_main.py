@@ -82,10 +82,16 @@ flags.DEFINE_integer(
     help=('The number of steps to use for search. Default is 10008'
           ' with batch size 1024 and with warmup steps 6255'))
 
-#Roxane Fischer Added
+#Roxane Fischer Added--------
 flags.DEFINE_integer(
     'warmup_steps', default=491,
     help=('Number of steps before end of dropout'))
+
+flags.DEFINE_float(
+    'decay_epochs',
+    default=2.4,
+    help=('Used to build learning rate. 2.4 when train batch size is1024.'))
+#Roxane Fischer Added--------
 
             
 flags.DEFINE_integer(
@@ -266,6 +272,8 @@ def nas_model_fn(features, labels, mode, params):
   if isinstance(features, dict):
     features = features['feature']
 
+  import pdb
+  #pdb.set_trace()
   # In most cases, the default data format NCHW instead of NHWC should be
   # used for a significant performance boost on GPU/TPU. NHWC should be used
   # only if the network needs to be run on CPU since the pooling operations
@@ -276,7 +284,6 @@ def nas_model_fn(features, labels, mode, params):
 
   if FLAGS.transpose_input and mode != tf.estimator.ModeKeys.PREDICT:
     features = tf.transpose(features, [3, 0, 1, 2])  # HWCN to NHWC
-
   # Normalize the image to zero mean and unit variance.
   features -= tf.constant(MEAN_RGB, shape=[1, 1, 3], dtype=features.dtype)
   features /= tf.constant(STDDEV_RGB, shape=[1, 1, 3], dtype=features.dtype)
@@ -309,7 +316,7 @@ def nas_model_fn(features, labels, mode, params):
   warmup_steps = FLAGS.warmup_steps
   dropout_rate = nas_utils.build_dropout_rate(global_step, warmup_steps)
 
-  logits, runtime_val, indicators = supernet_macro.build_supernet(
+  logits, runtime_val, variables = supernet_macro.build_supernet(
       features,
       model_name=FLAGS.model_name,
       training=is_training,
@@ -379,6 +386,7 @@ def nas_model_fn(features, labels, mode, params):
     # NOTE: dstamoulis -- cancelled out warm-up epochs with -1!!
     learning_rate = nas_utils.build_learning_rate(scaled_lr, global_step,
                                                       params['steps_per_epoch'],
+                                                      decay_epochs=FLAGS.decay_epochs,
                                                       warmup_epochs=-1)
     optimizer = nas_utils.build_optimizer(learning_rate)
     if FLAGS.use_tpu:
@@ -397,51 +405,89 @@ def nas_model_fn(features, labels, mode, params):
       with tf.control_dependencies([train_op]):
         train_op = ema.apply(ema_vars)
 
+    # if not FLAGS.skip_host_call:
+    #   def host_call_fn(gs, loss, lr, runtime, 
+    #           t5x5_1, t50c_1, t100c_1, t5x5_2, t50c_2, t100c_2, 
+    #           t5x5_3, t50c_3, t100c_3, t5x5_4, t50c_4, t100c_4, 
+    #           t5x5_5, t50c_5, t100c_5, t5x5_6, t50c_6, t100c_6, 
+    #           t5x5_7, t50c_7, t100c_7, t5x5_8, t50c_8, t100c_8, 
+    #           t5x5_9, t50c_9, t100c_9, t5x5_10, t50c_10, t100c_10, 
+    #           t5x5_11, t50c_11, t100c_11, t5x5_12, t50c_12, t100c_12, 
+    #           t5x5_13, t50c_13, t100c_13, t5x5_14, t50c_14, t100c_14, 
+    #           t5x5_15, t50c_15, t100c_15, t5x5_16, t50c_16, t100c_16, 
+    #           t5x5_17, t50c_17, t100c_17, t5x5_18, t50c_18, t100c_18, 
+    #           t5x5_19, t50c_19, t100c_19, t5x5_20, t50c_20, t100c_20):
+    #     gs = gs[0]
+
+    #     t_list = [[t5x5_1, t50c_1, t100c_1], [t5x5_2, t50c_2, t100c_2], 
+    #           [t5x5_3, t50c_3, t100c_3], [t5x5_4, t50c_4, t100c_4], 
+    #           [t5x5_5, t50c_5, t100c_5], [t5x5_6, t50c_6, t100c_6], 
+    #           [t5x5_7, t50c_7, t100c_7], [t5x5_8, t50c_8, t100c_8], 
+    #           [t5x5_9, t50c_9, t100c_9], [t5x5_10, t50c_10, t100c_10], 
+    #           [t5x5_11, t50c_11, t100c_11], [t5x5_12, t50c_12, t100c_12], 
+    #           [t5x5_13, t50c_13, t100c_13], [t5x5_14, t50c_14, t100c_14], 
+    #           [t5x5_15, t50c_15, t100c_15], [t5x5_16, t50c_16, t100c_16], 
+    #           [t5x5_17, t50c_17, t100c_17], [t5x5_18, t50c_18, t100c_18], 
+    #           [t5x5_19, t50c_19, t100c_19], [t5x5_20, t50c_20, t100c_20]]
+
+    #     # Host call fns are executed FLAGS.iterations_per_loop times after one
+    #     # TPU loop is finished, setting max_queue value to the same as number of
+    #     # iterations will make the summary writer only flush the data to storage
+    #     # once per loop.
+    #     with tf.contrib.summary.create_file_writer(
+    #         FLAGS.model_dir, max_queue=FLAGS.iterations_per_loop).as_default():
+    #       with tf.contrib.summary.always_record_summaries():
+    #         tf.contrib.summary.scalar('loss', loss[0], step=gs)
+    #         tf.contrib.summary.scalar('learning_rate', lr[0], step=gs)
+    #         #tf.contrib.summary.scalar('current_epoch', ce[0], step=gs)
+    #         tf.contrib.summary.scalar('runtime_ms', runtime[0], step=gs)
+    #         for idx, t_ in enumerate(t_list):
+    #           for label_, t_tensor in zip(['t5x5_','t50c_','t100c_'], t_):
+    #             sum_label_ = label_ + str(idx+1) 
+    #             tf.contrib.summary.scalar(sum_label_, t_tensor[0], step=gs)
+
+    #         return tf.contrib.summary.all_summary_ops()
+
     if not FLAGS.skip_host_call:
       def host_call_fn(gs, loss, lr, runtime, 
               t5x5_1, t50c_1, t100c_1, t5x5_2, t50c_2, t100c_2, 
               t5x5_3, t50c_3, t100c_3, t5x5_4, t50c_4, t100c_4, 
               t5x5_5, t50c_5, t100c_5, t5x5_6, t50c_6, t100c_6, 
               t5x5_7, t50c_7, t100c_7, t5x5_8, t50c_8, t100c_8, 
-              t5x5_9, t50c_9, t100c_9, t5x5_10, t50c_10, t100c_10, 
-              t5x5_11, t50c_11, t100c_11, t5x5_12, t50c_12, t100c_12, 
-              t5x5_13, t50c_13, t100c_13, t5x5_14, t50c_14, t100c_14, 
-              t5x5_15, t50c_15, t100c_15, t5x5_16, t50c_16, t100c_16, 
-              t5x5_17, t50c_17, t100c_17, t5x5_18, t50c_18, t100c_18, 
-              t5x5_19, t50c_19, t100c_19, t5x5_20, t50c_20, t100c_20):
-        """Training host call. Creates scalar summaries for training metrics.
-
-        This function is executed on the CPU and should not directly reference
-        any Tensors in the rest of the `model_fn`. To pass Tensors from the
-        model to the `metric_fn`, provide as part of the `host_call`. See
-        https://www.tensorflow.org/api_docs/python/tf/contrib/tpu/TPUEstimatorSpec
-        for more information.
-
-        Arguments should match the list of `Tensor` objects passed as the second
-        element in the tuple passed to `host_call`.
-
-        Args:
-          gs: `Tensor with shape `[batch]` for the global_step
-          loss: `Tensor` with shape `[batch]` for the training loss.
-          lr: `Tensor` with shape `[batch]` for the learning_rate.
-          ce: `Tensor` with shape `[batch]` for the current_epoch.
-
-        Returns:
-          List of summary ops to run on the CPU host.
-        """
+              n5x5_1, n50c_1, n100c_1, n5x5_2, n50c_2, n100c_2, 
+              n5x5_3, n50c_3, n100c_3, n5x5_4, n50c_4, n100c_4, 
+              n5x5_5, n50c_5, n100c_5, n5x5_6, n50c_6, n100c_6, 
+              n5x5_7, n50c_7, n100c_7, n5x5_8, n50c_8, n100c_8, 
+              d5x5_1, d50c_1, d100c_1, d5x5_2, d50c_2, d100c_2, 
+              d5x5_3, d50c_3, d100c_3, d5x5_4, d50c_4, d100c_4, 
+              d5x5_5, d50c_5, d100c_5, d5x5_6, d50c_6, d100c_6, 
+              d5x5_7, d50c_7, d100c_7, d5x5_8, d50c_8, d100c_8,
+              i5x5_1, i50c_1, i100c_1, i5x5_2, i50c_2, i100c_2, 
+              i5x5_3, i50c_3, i100c_3, i5x5_4, i50c_4, i100c_4, 
+              i5x5_5, i50c_5, i100c_5, i5x5_6, i50c_6, i100c_6, 
+              i5x5_7, i50c_7, i100c_7, i5x5_8, i50c_8, i100c_8):
         gs = gs[0]
 
         t_list = [[t5x5_1, t50c_1, t100c_1], [t5x5_2, t50c_2, t100c_2], 
               [t5x5_3, t50c_3, t100c_3], [t5x5_4, t50c_4, t100c_4], 
               [t5x5_5, t50c_5, t100c_5], [t5x5_6, t50c_6, t100c_6], 
-              [t5x5_7, t50c_7, t100c_7], [t5x5_8, t50c_8, t100c_8], 
-              [t5x5_9, t50c_9, t100c_9], [t5x5_10, t50c_10, t100c_10], 
-              [t5x5_11, t50c_11, t100c_11], [t5x5_12, t50c_12, t100c_12], 
-              [t5x5_13, t50c_13, t100c_13], [t5x5_14, t50c_14, t100c_14], 
-              [t5x5_15, t50c_15, t100c_15], [t5x5_16, t50c_16, t100c_16], 
-              [t5x5_17, t50c_17, t100c_17], [t5x5_18, t50c_18, t100c_18], 
-              [t5x5_19, t50c_19, t100c_19], [t5x5_20, t50c_20, t100c_20]]
+              [t5x5_7, t50c_7, t100c_7], [t5x5_8, t50c_8, t100c_8]]
 
+        n_list = [[n5x5_1, n50c_1, n100c_1], [n5x5_2, n50c_2, n100c_2], 
+              [n5x5_3, n50c_3, n100c_3], [n5x5_4, n50c_4, n100c_4], 
+              [n5x5_5, n50c_5, n100c_5], [n5x5_6, n50c_6, n100c_6], 
+              [n5x5_7, n50c_7, n100c_7], [n5x5_8, n50c_8, n100c_8]]
+
+        d_list = [[d5x5_1, d50c_1, d100c_1], [d5x5_2, d50c_2, d100c_2], 
+              [d5x5_3, d50c_3, d100c_3], [d5x5_4, d50c_4, d100c_4], 
+              [d5x5_5, d50c_5, d100c_5], [d5x5_6, d50c_6, d100c_6], 
+              [d5x5_7, d50c_7, d100c_7], [d5x5_8, d50c_8, d100c_8]]
+
+        i_list = [[i5x5_1, i50c_1, i100c_1], [i5x5_2, i50c_2, i100c_2], 
+              [i5x5_3, i50c_3, i100c_3], [i5x5_4, i50c_4, i100c_4], 
+              [i5x5_5, i50c_5, i100c_5], [i5x5_6, i50c_6, i100c_6], 
+              [i5x5_7, i50c_7, i100c_7], [i5x5_8, i50c_8, i100c_8]]
+        letters=['t','n','d','i']
         # Host call fns are executed FLAGS.iterations_per_loop times after one
         # TPU loop is finished, setting max_queue value to the same as number of
         # iterations will make the summary writer only flush the data to storage
@@ -453,11 +499,12 @@ def nas_model_fn(features, labels, mode, params):
             tf.contrib.summary.scalar('learning_rate', lr[0], step=gs)
             #tf.contrib.summary.scalar('current_epoch', ce[0], step=gs)
             tf.contrib.summary.scalar('runtime_ms', runtime[0], step=gs)
-            for idx, t_ in enumerate(t_list):
-              for label_, t_tensor in zip(['t5x5_','t50c_','t100c_'], t_):
-                sum_label_ = label_ + str(idx+1) 
-                tf.contrib.summary.scalar(sum_label_, t_tensor[0], step=gs)
-
+            for l, var_list in enumerate([t_list,n_list,d_list,i_list]): 
+              let = letters[l]
+              for idx, t_ in enumerate(var_list):
+                for label_, t_tensor in zip([f'{let}5x5_',f'{let}50c_',f'{let}100c_'], t_):
+                  sum_label_ = label_ + str(idx+1) 
+                  tf.contrib.summary.scalar(sum_label_, t_tensor[0], step=gs)
             return tf.contrib.summary.all_summary_ops()
 
 
@@ -470,17 +517,23 @@ def nas_model_fn(features, labels, mode, params):
       lr_t = tf.reshape(learning_rate, [1])
       runtime_t = tf.reshape(runtime_val, [1])
 
-      # Single-Path additions: get the threshold decisions per design space
-      t_list = []
-      decision_labels = ['d5x5','d50c','d100c']
-      t_list = []
-      for idx in range(20): 
-        key_ = 'block_' + str(idx+1)
-        for decision_label in decision_labels:
-          v = indicators[key_][decision_label]
-          t_list.append(tf.reshape(v, [1]))
 
-      host_call = (host_call_fn, [gs_t, loss_t, lr_t, runtime_t] + t_list)
+      # indicators = variables['indicators']
+      # thresholds = variables['thresholds']
+      # norms = variables['norms']
+      # differences = variables['differences']
+      # Single-Path additions: get the threshold decisions per design space
+      key_labels = ['5x5','50c','100c']
+      variables_list = []
+      for (type_label, values) in (variables.items()):
+        for idx in range(8): 
+          key_ = 'block_' + str(idx+1)
+          for  key_label in (key_labels):
+            decision_label = type_label+ key_label
+            v = values[key_][decision_label]
+            variables_list.append(tf.reshape(v, [1]))
+
+      host_call = (host_call_fn, [gs_t, loss_t, lr_t, runtime_t] + variables_list)
 
   else:
     train_op = None
@@ -509,6 +562,7 @@ def nas_model_fn(features, labels, mode, params):
       Returns:
         A dict of the metrics to return from evaluation.
       """
+
       predictions = tf.argmax(logits, axis=1)
       top_1_accuracy = tf.metrics.accuracy(labels, predictions)
       in_top_5 = tf.cast(tf.nn.in_top_k(logits, labels, 5), tf.float32)
