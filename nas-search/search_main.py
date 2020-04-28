@@ -453,7 +453,7 @@ def nas_model_fn(features, labels, mode, params):
               t5x5_1, t50c_1, t100c_1, t5x5_2, t50c_2, t100c_2, 
               t5x5_3, t50c_3, t100c_3, t5x5_4, t50c_4, t100c_4, 
               t5x5_5, t50c_5, t100c_5, t5x5_6, t50c_6, t100c_6, 
-              t5x5_7, t50c_7, t100c_7, t5x5_8, t50c_8, t100c_8, 
+              t5x5_7, t50c_7, t100c_7, t5x5_8, t50c_8, t100c_8,
               n5x5_1, n50c_1, n100c_1, n5x5_2, n50c_2, n100c_2, 
               n5x5_3, n50c_3, n100c_3, n5x5_4, n50c_4, n100c_4, 
               n5x5_5, n50c_5, n100c_5, n5x5_6, n50c_6, n100c_6, 
@@ -465,28 +465,42 @@ def nas_model_fn(features, labels, mode, params):
               i5x5_1, i50c_1, i100c_1, i5x5_2, i50c_2, i100c_2, 
               i5x5_3, i50c_3, i100c_3, i5x5_4, i50c_4, i100c_4, 
               i5x5_5, i50c_5, i100c_5, i5x5_6, i50c_6, i100c_6, 
-              i5x5_7, i50c_7, i100c_7, i5x5_8, i50c_8, i100c_8):
+              i5x5_7, i50c_7, i100c_7, i5x5_8, i50c_8, i100c_8,
+              i5x5_9, i50c_9, i100c_9, i5x5_10, i50c_10, i100c_10, 
+              i5x5_11, i50c_11, i100c_11, i5x5_12, i50c_12, i100c_12, 
+              i5x5_13, i50c_13, i100c_13, i5x5_14, i50c_14, i100c_14, 
+              i5x5_15, i50c_15, i100c_15, i5x5_16, i50c_16, i100c_16, 
+              i5x5_17, i50c_17, i100c_17, i5x5_18, i50c_18, i100c_18, 
+              i5x5_19, i50c_19, i100c_19, i5x5_20, i50c_20, i100c_20):
         gs = gs[0]
-
+        #thresholds
         t_list = [[t5x5_1, t50c_1, t100c_1], [t5x5_2, t50c_2, t100c_2], 
               [t5x5_3, t50c_3, t100c_3], [t5x5_4, t50c_4, t100c_4], 
               [t5x5_5, t50c_5, t100c_5], [t5x5_6, t50c_6, t100c_6], 
               [t5x5_7, t50c_7, t100c_7], [t5x5_8, t50c_8, t100c_8]]
-
+        #norms
         n_list = [[n5x5_1, n50c_1, n100c_1], [n5x5_2, n50c_2, n100c_2], 
               [n5x5_3, n50c_3, n100c_3], [n5x5_4, n50c_4, n100c_4], 
               [n5x5_5, n50c_5, n100c_5], [n5x5_6, n50c_6, n100c_6], 
               [n5x5_7, n50c_7, n100c_7], [n5x5_8, n50c_8, n100c_8]]
-
+        #differences = norms - thresholds
         d_list = [[d5x5_1, d50c_1, d100c_1], [d5x5_2, d50c_2, d100c_2], 
               [d5x5_3, d50c_3, d100c_3], [d5x5_4, d50c_4, d100c_4], 
               [d5x5_5, d50c_5, d100c_5], [d5x5_6, d50c_6, d100c_6], 
               [d5x5_7, d50c_7, d100c_7], [d5x5_8, d50c_8, d100c_8]]
-
+        #indicators
         i_list = [[i5x5_1, i50c_1, i100c_1], [i5x5_2, i50c_2, i100c_2], 
               [i5x5_3, i50c_3, i100c_3], [i5x5_4, i50c_4, i100c_4], 
               [i5x5_5, i50c_5, i100c_5], [i5x5_6, i50c_6, i100c_6], 
-              [i5x5_7, i50c_7, i100c_7], [i5x5_8, i50c_8, i100c_8]]
+              [i5x5_7, i50c_7, i100c_7], [i5x5_8, i50c_8, i100c_8],  
+              [i5x5_9, i50c_9, i100c_9], [i5x5_10, i50c_10, i100c_10], 
+              [i5x5_11, i50c_11, i100c_11], [i5x5_12, i50c_12, i100c_12], 
+              [i5x5_13, i50c_13, i100c_13], [i5x5_14, i50c_14, i100c_14], 
+              [i5x5_15, i50c_15, i100c_15], [i5x5_16, i50c_16, i100c_16], 
+              [i5x5_17, i50c_17, i100c_17], [i5x5_18, i50c_18, i100c_18], 
+              [i5x5_19, i50c_19, i100c_19], [i5x5_20, i50c_20, i100c_20]]
+
+              
         letters=['t','n','d','i']
         # Host call fns are executed FLAGS.iterations_per_loop times after one
         # TPU loop is finished, setting max_queue value to the same as number of
@@ -499,10 +513,9 @@ def nas_model_fn(features, labels, mode, params):
             tf.contrib.summary.scalar('learning_rate', lr[0], step=gs)
             #tf.contrib.summary.scalar('current_epoch', ce[0], step=gs)
             tf.contrib.summary.scalar('runtime_ms', runtime[0], step=gs)
-            for l, var_list in enumerate([t_list,n_list,d_list,i_list]): 
-              let = letters[l]
+            for letter, var_list in {'t':t_list, 'n':n_list,'d':d_list,'i':i_list}.items():
               for idx, t_ in enumerate(var_list):
-                for label_, t_tensor in zip([f'{let}5x5_',f'{let}50c_',f'{let}100c_'], t_):
+                for label_, t_tensor in zip([f'{letter}5x5_',f'{letter}50c_',f'{letter}100c_'], t_):
                   sum_label_ = label_ + str(idx+1) 
                   tf.contrib.summary.scalar(sum_label_, t_tensor[0], step=gs)
             return tf.contrib.summary.all_summary_ops()
@@ -526,12 +539,13 @@ def nas_model_fn(features, labels, mode, params):
       key_labels = ['5x5','50c','100c']
       variables_list = []
       for (type_label, values) in (variables.items()):
-        for idx in range(8): 
-          key_ = 'block_' + str(idx+1)
-          for  key_label in (key_labels):
-            decision_label = type_label+ key_label
-            v = values[key_][decision_label]
-            variables_list.append(tf.reshape(v, [1]))
+        for idx, variable in enumerate(values): 
+          if type_label=='i' or idx<8: #display all blocks for indicators, only 8 for the rest
+            key_ = 'block_' + str(idx+1)
+            for  key_label in (key_labels):
+              decision_label = type_label+ key_label
+              v = values[key_][decision_label]
+              variables_list.append(tf.reshape(v, [1]))
 
       host_call = (host_call_fn, [gs_t, loss_t, lr_t, runtime_t] + variables_list)
 

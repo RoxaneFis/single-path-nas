@@ -13,7 +13,7 @@ def parse_indicators_single_path_nas(path, tf_size_guidance):
 
   # Show all tags in the log file
   tags = event_acc.Tags()['scalars']
-  labels = ['t5x5_','t50c_','t100c_']
+  labels = ['i5x5_','i50c_','i100c_']
   inds = []
   for idx in range(20):
     layer_row = []
