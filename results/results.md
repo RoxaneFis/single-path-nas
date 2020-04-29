@@ -80,3 +80,29 @@ EARLY STOP : Checkpoint 600 (0,768 epochs)
 |:-----------------------------:|:--------------------------------:|:------------------------------------:|
 | Eval/chkpt35000|                ≃ 5e-3/1e-2 |  ≃2,25e-2 |
 | Train/chkpt35000|                0.8 | 0.9 |
+
+
+## Test v2 (Increased dropout_rate - 1h)
+
+
+### Architecure : Full 5x5-6 MBConvBlocks
+
+
+
+| Parameters  |     Values     |  Help | 
+|:-----------------------------:|:--------------------------------:|:------------------------------------:|
+| num_classes |  200             | / |
+| num_train_images |   100,000             | / |
+| num_eval_images |  9832             | / |
+| input_image_size |  64             | / |
+| eval_batch_size |  1024             | / |
+| train_batch_size |  1024             | /|
+| steps_per_eval |  200             | 0.26 epochs|
+| lambda |  0             | no runtime loss |
+| **train_steps** |    **3500**  |   eq. 35 epochs |
+| **dropout_rate** |    **0.6**   |   / |
+| label_smoothing | 0.1 |    / |
+
+
+### Conclusion : still overfitting (see graphs/v2_main.png)
+
