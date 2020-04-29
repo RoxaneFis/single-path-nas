@@ -1,5 +1,5 @@
 
-# Local - Tiny Imagenet
+# NAS.py
 
 
 | Elapsed time  |     Values     |  Help |
@@ -8,7 +8,7 @@
 | global_step/sec |   0.230493             | 6250/0.23 = 27e3sec = 7,5h |
 
 
-## Test v2
+## Test v2 - local (check if at least learn on the training set)
 
 | Parameters  |     Values     |  Help | 
 |:-----------------------------:|:--------------------------------:|:------------------------------------:|
@@ -24,7 +24,6 @@
 | warmup_steps | 0 |    no dropout |
 | dropout_rate |    (0.5)   |   not used here |
 | label_smoothing | 0.2 |    / |
-| **BAD IDEA : decay_epochs**|   **0.29**  |   **lr updated/230 stps** | 
 
 </br>
 
@@ -35,12 +34,27 @@
 | Train/chkpt200 |                4,69e-3 | 2,36e-2 |
 | Train/chkpt400|                5,5e-3 | 2,68e-2 |
 | Train/chkpt600|                1,9e-2 | 8,3e-2 |
+| Eval/chkpt600|                No improvement | No improvement |
 
-STOP : Checkpoint 600 (0,768 epochs)
+
+EARLY STOP : Checkpoint 600 (0,768 epochs)
 
 ---------------------------
 
-## Test v3 (change learning-rate decay :no diff v2)
+
+
+# Main.py
+
+
+## Test v1 (GPU temporary borrowed - 12h)
+
+
+### Architecure : Full 5x5-6 MBConvBlocks
+
+| Elapsed time  |     Values     |  Help |
+|:-----------------------------:|:--------------------------------:|:------------------------------------:|
+| examples/sec |  1200             | /|
+| global_step/sec |   1.15             | / |
 
 
 | Parameters  |     Values     |  Help | 
@@ -49,25 +63,20 @@ STOP : Checkpoint 600 (0,768 epochs)
 | num_train_images |   100,000             | / |
 | num_eval_images |  9832             | / |
 | input_image_size |  64             | / |
-| eval_batch_size |  128             | / |
-| train_batch_size |  128             | /|
+| eval_batch_size |  1024             | / |
+| train_batch_size |  1024             | /|
 | steps_per_eval |  200             | 0.26 epochs|
 | lambda |  0             | no runtime loss |
-| train_steps |    6250   |   eq. 8 epochs |
-| warmup_steps | 0 |    no dropout |
-| dropout_rate |    (0.5)   |   not used here |
-| label_smoothing | 0.2 |    / |
-| **decay_epochs** |    **Default 2.4**  |   lr updated/1562 stps| 
-
-</br>
+| train_steps |    35,000  |   eq. 350 epochs |
+| dropout_rate |    0.2   |   for final output layer |
+| label_smoothing | 0.1 |    / |
 
 
+### Conclusion : surely overfitting (see graphs/v1_main.png)
+
+#### verification:
 
 | Results  |     top_1_accuracy     |  top_5_accuracy  |
 |:-----------------------------:|:--------------------------------:|:------------------------------------:|
-| Train/chkpt0|                4,49e-3 | 2,37e-2 |
-| Train/chkpt200 |                6,25e-3 | 2,46e-2 |
-| Train/chkpt400|                4,20e-3 | 2,46e-2 |
-| Train/chkpt600|                2,16e-2 | 8,68e-2 |
-
-STOP : Checkpoint 600 (0,768 epochs)
+| Eval/chkpt35000|                ≃ 5e-3/1e-2 |  ≃2,25e-2 |
+| Train/chkpt35000|                0.8 | 0.9 |
