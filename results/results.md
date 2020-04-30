@@ -72,13 +72,12 @@ EARLY STOP : Checkpoint 600 (0,768 epochs)
 | label_smoothing | 0.1 |    / |
 
 
-### Conclusion : surely overfitting (see graphs/v1_main.png)
 
 #### verification:
 
 | Results  |     top_1_accuracy     |  top_5_accuracy  |
 |:-----------------------------:|:--------------------------------:|:------------------------------------:|
-| Eval/chkpt35000|                ≃ 5e-3/1e-2 |  ≃2,25e-2 |
+| CORRECTED Eval/chkpt35000|                ≃ 0.5 |  ≃0.73 |
 | Train/chkpt35000|                0.8 | 0.9 |
 
 
@@ -104,5 +103,9 @@ EARLY STOP : Checkpoint 600 (0,768 epochs)
 | label_smoothing | 0.1 |    / |
 
 
-### Conclusion : still overfitting (see graphs/v2_main.png)
+| Results  |     top_1_accuracy     |  top_5_accuracy  |
+|:-----------------------------:|:--------------------------------:|:------------------------------------:|
+| CORRECTED Eval/chkpt3500|                ≃ 0.38 |  ≃0.65 |
+
+
 
