@@ -313,6 +313,7 @@ def nas_model_fn(features, labels, mode, params):
 
 
   global_step = tf.train.get_global_step()
+  #RF before hardcoded 6255
   warmup_steps = FLAGS.warmup_steps
   dropout_rate = nas_utils.build_dropout_rate(global_step, warmup_steps)
 
@@ -449,19 +450,37 @@ def nas_model_fn(features, labels, mode, params):
     #         return tf.contrib.summary.all_summary_ops()
 
     if not FLAGS.skip_host_call:
-      def host_call_fn(gs, loss, lr, runtime, 
+      def host_call_fn(gs, loss, lr, runtime, runtime_loss,
               t5x5_1, t50c_1, t100c_1, t5x5_2, t50c_2, t100c_2, 
               t5x5_3, t50c_3, t100c_3, t5x5_4, t50c_4, t100c_4, 
               t5x5_5, t50c_5, t100c_5, t5x5_6, t50c_6, t100c_6, 
               t5x5_7, t50c_7, t100c_7, t5x5_8, t50c_8, t100c_8,
+              t5x5_9, t50c_9, t100c_9, t5x5_10, t50c_10, t100c_10, 
+              t5x5_11, t50c_11, t100c_11, t5x5_12, t50c_12, t100c_12, 
+              t5x5_13, t50c_13, t100c_13, t5x5_14, t50c_14, t100c_14, 
+              t5x5_15, t50c_15, t100c_15, t5x5_16, t50c_16, t100c_16, 
+              t5x5_17, t50c_17, t100c_17, t5x5_18, t50c_18, t100c_18, 
+              t5x5_19, t50c_19, t100c_19, t5x5_20, t50c_20, t100c_20,
               n5x5_1, n50c_1, n100c_1, n5x5_2, n50c_2, n100c_2, 
               n5x5_3, n50c_3, n100c_3, n5x5_4, n50c_4, n100c_4, 
               n5x5_5, n50c_5, n100c_5, n5x5_6, n50c_6, n100c_6, 
-              n5x5_7, n50c_7, n100c_7, n5x5_8, n50c_8, n100c_8, 
+              n5x5_7, n50c_7, n100c_7, n5x5_8, n50c_8, n100c_8,
+              n5x5_9, n50c_9, n100c_9, n5x5_10, n50c_10, n100c_10, 
+              n5x5_11, n50c_11, n100c_11, n5x5_12, n50c_12, n100c_12, 
+              n5x5_13, n50c_13, n100c_13, n5x5_14, n50c_14, n100c_14, 
+              n5x5_15, n50c_15, n100c_15, n5x5_16, n50c_16, n100c_16, 
+              n5x5_17, n50c_17, n100c_17, n5x5_18, n50c_18, n100c_18, 
+              n5x5_19, n50c_19, n100c_19, n5x5_20, n50c_20, n100c_20,
               d5x5_1, d50c_1, d100c_1, d5x5_2, d50c_2, d100c_2, 
               d5x5_3, d50c_3, d100c_3, d5x5_4, d50c_4, d100c_4, 
               d5x5_5, d50c_5, d100c_5, d5x5_6, d50c_6, d100c_6, 
               d5x5_7, d50c_7, d100c_7, d5x5_8, d50c_8, d100c_8,
+              d5x5_9, d50c_9, d100c_9, d5x5_10, d50c_10, d100c_10, 
+              d5x5_11, d50c_11, d100c_11, d5x5_12, d50c_12, d100c_12, 
+              d5x5_13, d50c_13, d100c_13, d5x5_14, d50c_14, d100c_14, 
+              d5x5_15, d50c_15, d100c_15, d5x5_16, d50c_16, d100c_16, 
+              d5x5_17, d50c_17, d100c_17, d5x5_18, d50c_18, d100c_18, 
+              d5x5_19, d50c_19, d100c_19, d5x5_20, d50c_20, d100c_20,
               i5x5_1, i50c_1, i100c_1, i5x5_2, i50c_2, i100c_2, 
               i5x5_3, i50c_3, i100c_3, i5x5_4, i50c_4, i100c_4, 
               i5x5_5, i50c_5, i100c_5, i5x5_6, i50c_6, i100c_6, 
@@ -477,17 +496,35 @@ def nas_model_fn(features, labels, mode, params):
         t_list = [[t5x5_1, t50c_1, t100c_1], [t5x5_2, t50c_2, t100c_2], 
               [t5x5_3, t50c_3, t100c_3], [t5x5_4, t50c_4, t100c_4], 
               [t5x5_5, t50c_5, t100c_5], [t5x5_6, t50c_6, t100c_6], 
-              [t5x5_7, t50c_7, t100c_7], [t5x5_8, t50c_8, t100c_8]]
+              [t5x5_7, t50c_7, t100c_7], [t5x5_8, t50c_8, t100c_8],
+              [t5x5_9, t50c_9, t100c_9], [t5x5_10, t50c_10, t100c_10], 
+              [t5x5_11, t50c_11, t100c_11], [t5x5_12, t50c_12, t100c_12], 
+              [t5x5_13, t50c_13, t100c_13], [t5x5_14, t50c_14, t100c_14], 
+              [t5x5_15, t50c_15, t100c_15], [t5x5_16, t50c_16, t100c_16], 
+              [t5x5_17, t50c_17, t100c_17], [t5x5_18, t50c_18, t100c_18], 
+              [t5x5_19, t50c_19, t100c_19], [t5x5_20, t50c_20, t100c_20] ]
         #norms
         n_list = [[n5x5_1, n50c_1, n100c_1], [n5x5_2, n50c_2, n100c_2], 
               [n5x5_3, n50c_3, n100c_3], [n5x5_4, n50c_4, n100c_4], 
               [n5x5_5, n50c_5, n100c_5], [n5x5_6, n50c_6, n100c_6], 
-              [n5x5_7, n50c_7, n100c_7], [n5x5_8, n50c_8, n100c_8]]
+              [n5x5_7, n50c_7, n100c_7], [n5x5_8, n50c_8, n100c_8],
+              [n5x5_9, n50c_9, n100c_9], [n5x5_10, n50c_10, n100c_10], 
+              [n5x5_11, n50c_11, n100c_11], [n5x5_12, n50c_12, n100c_12], 
+              [n5x5_13, n50c_13, n100c_13], [n5x5_14, n50c_14, n100c_14], 
+              [n5x5_15, n50c_15, n100c_15], [n5x5_16, n50c_16, n100c_16], 
+              [n5x5_17, n50c_17, n100c_17], [n5x5_18, n50c_18, n100c_18], 
+              [n5x5_19, n50c_19, n100c_19], [n5x5_20, n50c_20, n100c_20]]
         #differences = norms - thresholds
         d_list = [[d5x5_1, d50c_1, d100c_1], [d5x5_2, d50c_2, d100c_2], 
               [d5x5_3, d50c_3, d100c_3], [d5x5_4, d50c_4, d100c_4], 
               [d5x5_5, d50c_5, d100c_5], [d5x5_6, d50c_6, d100c_6], 
-              [d5x5_7, d50c_7, d100c_7], [d5x5_8, d50c_8, d100c_8]]
+              [d5x5_7, d50c_7, d100c_7], [d5x5_8, d50c_8, d100c_8],
+              [d5x5_9, d50c_9, d100c_9], [d5x5_10, d50c_10, d100c_10], 
+              [d5x5_11, d50c_11, d100c_11], [d5x5_12, d50c_12, d100c_12], 
+              [d5x5_13, d50c_13, d100c_13], [d5x5_14, d50c_14, d100c_14], 
+              [d5x5_15, d50c_15, d100c_15], [d5x5_16, d50c_16, d100c_16], 
+              [d5x5_17, d50c_17, d100c_17], [d5x5_18, d50c_18, d100c_18], 
+              [d5x5_19, d50c_19, d100c_19], [d5x5_20, d50c_20, d100c_20]]
         #indicators
         i_list = [[i5x5_1, i50c_1, i100c_1], [i5x5_2, i50c_2, i100c_2], 
               [i5x5_3, i50c_3, i100c_3], [i5x5_4, i50c_4, i100c_4], 
@@ -509,10 +546,11 @@ def nas_model_fn(features, labels, mode, params):
         with tf.contrib.summary.create_file_writer(
             FLAGS.model_dir, max_queue=FLAGS.iterations_per_loop).as_default():
           with tf.contrib.summary.always_record_summaries():
-            tf.contrib.summary.scalar('loss', loss[0], step=gs)
-            tf.contrib.summary.scalar('learning_rate', lr[0], step=gs)
+            tf.contrib.summary.scalar('a_loss', loss[0], step=gs)
+            tf.contrib.summary.scalar('a_learning_rate', lr[0], step=gs)
             #tf.contrib.summary.scalar('current_epoch', ce[0], step=gs)
-            tf.contrib.summary.scalar('runtime_ms', runtime[0], step=gs)
+            tf.contrib.summary.scalar('a_runtime_ms', runtime[0], step=gs)
+            tf.contrib.summary.scalar('a_runtime_loss', runtime_loss[0], step=gs)
             for letter, var_list in {'t':t_list, 'n':n_list,'d':d_list,'i':i_list}.items():
               for idx, t_ in enumerate(var_list):
                 for label_, t_tensor in zip([f'{letter}5x5_',f'{letter}50c_',f'{letter}100c_'], t_):
@@ -529,6 +567,7 @@ def nas_model_fn(features, labels, mode, params):
       loss_t = tf.reshape(cross_entropy, [1])
       lr_t = tf.reshape(learning_rate, [1])
       runtime_t = tf.reshape(runtime_val, [1])
+      runtime_loss_t = tf.reshape(runtime_loss, [1])
 
 
       # indicators = variables['indicators']
@@ -540,14 +579,15 @@ def nas_model_fn(features, labels, mode, params):
       variables_list = []
       for (type_label, values) in (variables.items()):
         for idx, variable in enumerate(values): 
-          if type_label=='i' or idx<8: #display all blocks for indicators, only 8 for the rest
+          if True:
+          #if type_label=='i' or idx<8: #display all blocks for indicators, only 8 for the rest
             key_ = 'block_' + str(idx+1)
             for  key_label in (key_labels):
               decision_label = type_label+ key_label
               v = values[key_][decision_label]
               variables_list.append(tf.reshape(v, [1]))
 
-      host_call = (host_call_fn, [gs_t, loss_t, lr_t, runtime_t] + variables_list)
+      host_call = (host_call_fn, [gs_t, loss_t, lr_t, runtime_t, runtime_loss_t] + variables_list)
 
   else:
     train_op = None
@@ -583,8 +623,8 @@ def nas_model_fn(features, labels, mode, params):
       top_5_accuracy = tf.metrics.mean(in_top_5)
 
       return {
-          'top_1_accuracy': top_1_accuracy,
-          'top_5_accuracy': top_5_accuracy,
+          'a_top_1_accuracy': top_1_accuracy,
+          'a_top_5_accuracy': top_5_accuracy,
       }
 
     eval_metrics = (metric_fn, [labels, logits])
