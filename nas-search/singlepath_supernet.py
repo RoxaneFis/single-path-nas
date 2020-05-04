@@ -414,6 +414,7 @@ class SinglePathSuperNet(tf.keras.Model):
     self.differences = {}
 
     # rest of runtime (i.e., stem, head, logits, block0, block21)
+    # RF Logits?
     total_runtime = 19.5999
 
     # Calls Stem layers

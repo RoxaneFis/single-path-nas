@@ -315,8 +315,8 @@ def nas_model_fn(features, labels, mode, params):
   global_step = tf.train.get_global_step()
   #RF before hardcoded 6255
   warmup_steps = FLAGS.warmup_steps
+  #FIXME : overide dropout rate
   dropout_rate = nas_utils.build_dropout_rate(global_step, warmup_steps)
-
   logits, runtime_val, variables = supernet_macro.build_supernet(
       features,
       model_name=FLAGS.model_name,
@@ -406,51 +406,10 @@ def nas_model_fn(features, labels, mode, params):
       with tf.control_dependencies([train_op]):
         train_op = ema.apply(ema_vars)
 
-    # if not FLAGS.skip_host_call:
-    #   def host_call_fn(gs, loss, lr, runtime, 
-    #           t5x5_1, t50c_1, t100c_1, t5x5_2, t50c_2, t100c_2, 
-    #           t5x5_3, t50c_3, t100c_3, t5x5_4, t50c_4, t100c_4, 
-    #           t5x5_5, t50c_5, t100c_5, t5x5_6, t50c_6, t100c_6, 
-    #           t5x5_7, t50c_7, t100c_7, t5x5_8, t50c_8, t100c_8, 
-    #           t5x5_9, t50c_9, t100c_9, t5x5_10, t50c_10, t100c_10, 
-    #           t5x5_11, t50c_11, t100c_11, t5x5_12, t50c_12, t100c_12, 
-    #           t5x5_13, t50c_13, t100c_13, t5x5_14, t50c_14, t100c_14, 
-    #           t5x5_15, t50c_15, t100c_15, t5x5_16, t50c_16, t100c_16, 
-    #           t5x5_17, t50c_17, t100c_17, t5x5_18, t50c_18, t100c_18, 
-    #           t5x5_19, t50c_19, t100c_19, t5x5_20, t50c_20, t100c_20):
-    #     gs = gs[0]
 
-    #     t_list = [[t5x5_1, t50c_1, t100c_1], [t5x5_2, t50c_2, t100c_2], 
-    #           [t5x5_3, t50c_3, t100c_3], [t5x5_4, t50c_4, t100c_4], 
-    #           [t5x5_5, t50c_5, t100c_5], [t5x5_6, t50c_6, t100c_6], 
-    #           [t5x5_7, t50c_7, t100c_7], [t5x5_8, t50c_8, t100c_8], 
-    #           [t5x5_9, t50c_9, t100c_9], [t5x5_10, t50c_10, t100c_10], 
-    #           [t5x5_11, t50c_11, t100c_11], [t5x5_12, t50c_12, t100c_12], 
-    #           [t5x5_13, t50c_13, t100c_13], [t5x5_14, t50c_14, t100c_14], 
-    #           [t5x5_15, t50c_15, t100c_15], [t5x5_16, t50c_16, t100c_16], 
-    #           [t5x5_17, t50c_17, t100c_17], [t5x5_18, t50c_18, t100c_18], 
-    #           [t5x5_19, t50c_19, t100c_19], [t5x5_20, t50c_20, t100c_20]]
-
-    #     # Host call fns are executed FLAGS.iterations_per_loop times after one
-    #     # TPU loop is finished, setting max_queue value to the same as number of
-    #     # iterations will make the summary writer only flush the data to storage
-    #     # once per loop.
-    #     with tf.contrib.summary.create_file_writer(
-    #         FLAGS.model_dir, max_queue=FLAGS.iterations_per_loop).as_default():
-    #       with tf.contrib.summary.always_record_summaries():
-    #         tf.contrib.summary.scalar('loss', loss[0], step=gs)
-    #         tf.contrib.summary.scalar('learning_rate', lr[0], step=gs)
-    #         #tf.contrib.summary.scalar('current_epoch', ce[0], step=gs)
-    #         tf.contrib.summary.scalar('runtime_ms', runtime[0], step=gs)
-    #         for idx, t_ in enumerate(t_list):
-    #           for label_, t_tensor in zip(['t5x5_','t50c_','t100c_'], t_):
-    #             sum_label_ = label_ + str(idx+1) 
-    #             tf.contrib.summary.scalar(sum_label_, t_tensor[0], step=gs)
-
-    #         return tf.contrib.summary.all_summary_ops()
 
     if not FLAGS.skip_host_call:
-      def host_call_fn(gs, loss, lr, runtime, runtime_loss,
+      def host_call_fn(dropout,gs, loss, lr, runtime, runtime_loss,
               t5x5_1, t50c_1, t100c_1, t5x5_2, t50c_2, t100c_2, 
               t5x5_3, t50c_3, t100c_3, t5x5_4, t50c_4, t100c_4, 
               t5x5_5, t50c_5, t100c_5, t5x5_6, t50c_6, t100c_6, 
@@ -551,7 +510,10 @@ def nas_model_fn(features, labels, mode, params):
             #tf.contrib.summary.scalar('current_epoch', ce[0], step=gs)
             tf.contrib.summary.scalar('a_runtime_ms', runtime[0], step=gs)
             tf.contrib.summary.scalar('a_runtime_loss', runtime_loss[0], step=gs)
-            for letter, var_list in {'t':t_list, 'n':n_list,'d':d_list,'i':i_list}.items():
+            tf.contrib.summary.scalar('a_dropout_rate', dropout_rate, step=gs)
+
+            for letter, var_list in {'t':t_list, 'n':n_list,'i':i_list}.items():
+            #for letter, var_list in {'t':t_list, 'n':n_list,'d':d_list,'i':i_list}.items():
               for idx, t_ in enumerate(var_list):
                 for label_, t_tensor in zip([f'{letter}5x5_',f'{letter}50c_',f'{letter}100c_'], t_):
                   sum_label_ = label_ + str(idx+1) 
@@ -568,6 +530,7 @@ def nas_model_fn(features, labels, mode, params):
       lr_t = tf.reshape(learning_rate, [1])
       runtime_t = tf.reshape(runtime_val, [1])
       runtime_loss_t = tf.reshape(runtime_loss, [1])
+      dropout_rate_t = tf.reshape(dropout_rate, [1])
 
 
       # indicators = variables['indicators']
@@ -587,7 +550,7 @@ def nas_model_fn(features, labels, mode, params):
               v = values[key_][decision_label]
               variables_list.append(tf.reshape(v, [1]))
 
-      host_call = (host_call_fn, [gs_t, loss_t, lr_t, runtime_t, runtime_loss_t] + variables_list)
+      host_call = (host_call_fn, [dropout_rate_t, gs_t, loss_t, lr_t, runtime_t, runtime_loss_t] + variables_list)
 
   else:
     train_op = None

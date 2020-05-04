@@ -132,6 +132,7 @@ def parse_netarch_model(parse_lambda_dir, depth_multiplier=None):
   parse_netarch.print_encoded_net(blocks_args)
 
   decoder = MnasNetDecoder()
+  #RF Hardcoded?
   global_params = model_def.GlobalParams(
       batch_norm_momentum=0.99,
       batch_norm_epsilon=1e-3,

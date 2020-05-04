@@ -126,6 +126,12 @@ flags.DEFINE_integer(
           ' --iterations_per_loop. The larger this value is, the higher the'
           ' utilization on the TPU.'))
 
+''' RF
+flags.DEFINE_integer(
+    'save_checkpoints_steps', default=2000,
+    help=('Number of steps before checkpoints is saved'))
+'''
+
 flags.DEFINE_integer(
     'num_parallel_calls', default=64,
     help=('Number of parallel threads in CPU for the input pipeline'))
