@@ -8,7 +8,7 @@
 | global_step/sec |   0.230493             | 6250/0.23 = 27e3sec = 7,5h |
 
 
-## Test v2 - local (check if at least learn on the training set)
+## Test v2 - no dropout/runtime loss
 
 | Parameters  |     Values     |  Help | 
 |:-----------------------------:|:--------------------------------:|:------------------------------------:|
@@ -28,18 +28,43 @@
 </br>
 
 
-| Results  |     top_1_accuracy     |  top_5_accuracy  |
-|:-----------------------------:|:--------------------------------:|:------------------------------------:|
-| Train/chkpt0|                4,79e-3 | 2,4e-2 |
-| Train/chkpt200 |                4,69e-3 | 2,36e-2 |
-| Train/chkpt400|                5,5e-3 | 2,68e-2 |
-| Train/chkpt600|                1,9e-2 | 8,3e-2 |
-| Eval/chkpt600|                No improvement | No improvement |
+| Results   |             Runtime
+|:--------------------------------------:|:----------------------------------------------:|
+| full 5x5-6 architecture     |     125,8 ms            |  
 
 
 EARLY STOP : Checkpoint 600 (0,768 epochs)
 
 ---------------------------
+
+
+## Test v3  - lambda_val = 0.1 with dropout
+
+
+| Parameters  |     Values     |  Help | 
+|:-----------------------------:|:--------------------------------:|:------------------------------------:|
+| num_classes |  200             | / |
+| num_train_images |   100,000             | / |
+| num_eval_images |  9832             | / |
+| input_image_size |  64             | / |
+| eval_batch_size |  1024            | / |
+| train_batch_size |  1024             | /|
+| steps_per_eval |  200             | 0.26 epochs|
+| lambda |  0.1             | no runtime loss |
+| train_steps |    785  |   eq. 8 epochs |
+| warmup_steps | 491 |    eq. 6 epochs |
+| dropout_rate |    0.2   |   / |
+|**label_smoothing**| **0.8**|    / |
+
+</br>
+
+
+| Results   |             Runtime
+|:--------------------------------------:|:----------------------------------------------:|
+| 3 skips connections & 1 5x5-3    |  98,31 ms            |  
+
+
+
 
 
 
