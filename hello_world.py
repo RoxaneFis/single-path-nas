@@ -1,9 +1,8 @@
 
 
 
-def main():
-    return("HELLO")
+def script_handler(events, context):
+  print('hello world ROX')
+  # print(events["parameter"])
+  return {'message': 'Hello ROX'}
 
-if __name__ == '__main__':
-    print('HELLO WORLD')
-    main()
