@@ -26,6 +26,8 @@ import json
 
 # dstamoulis: definition of masked layer (DepthwiseConv2DMasked)
 from superkernel import *
+from nn_treatment import TreatNeuralNetwork
+from predictor import Predictor, PredictorModel
 
 import pdb
 #pdb.set_trace()
@@ -462,5 +464,31 @@ class SinglePathSuperNet(tf.keras.Model):
         outputs = self._dropout(outputs, training=training)
       outputs = self._fc(outputs)
       self.endpoints['head'] = outputs
+   
+   
+    import pdb
+    #pdb.set_trace()
+    
+    TreatNN = TreatNeuralNetwork(self._conv_stem,self._blocks,self._conv_head,self._global_params.num_classes)
+    nn_array = TreatNN.NN_to_array()
 
-    return outputs, total_runtime
+    predictor = PredictorModel()
+    model_path = "/Users/roxanefischer/Desktop/single_path_nas/single-path-nas/HAS/results_best_models/multiply/with_inversed_hw/model_1_plus_12161_param_0.131_error/model_1_plus_12161_param"
+    #predictor.compile(tf.keras.optimizers.Adam())
+    predictor.load_weights(model_path)
+
+    hw_array = np.array([ 0 , 0, 0,  0, 0, 0,0,0,0,0,0,0])
+
+    # hw_array = np.array([ 0.8552576 , -0.47734305, -0.62680401,  0.57911723,  0.37841259,
+    #    -0.23434365, -0.64634273,  0.68297377,  0.06787059, -1.01696994,
+    #    -0.81343443, -0.49667088])
+    
+    hw_array = hw_array.reshape((1, *hw_array.shape))
+    nn_array = nn_array.reshape((1, *nn_array.shape))
+    
+    power = predictor.predict([nn_array, hw_array])
+
+
+    #### self._blocks[0]._block_args !!!!!
+    # [self._blocks[i]._block_args for i in range(len(self._blocks))]
+    return outputs, total_runtime, power

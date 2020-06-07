@@ -174,10 +174,10 @@ def build_supernet(images, model_name, training, override_params=None, dropout_r
 
   with tf.variable_scope(model_name):
     model = singlepath_supernet.SinglePathSuperNet(blocks_args, global_params, dropout_rate)
-    logits, total_runtime = model(images, training=training)
+    logits, total_runtime, power = model(images, training=training)
 
   logits = tf.identity(logits, 'logits')
-  return logits, total_runtime, {'t':model.thresholds, \
+  return logits, total_runtime, power, {'t':model.thresholds, \
                                  'norm':model.norms, \
                                  'diff': model.differences, \
                                  'i': model.indicators}

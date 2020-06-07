@@ -272,8 +272,7 @@ def nas_model_fn(features, labels, mode, params):
   if isinstance(features, dict):
     features = features['feature']
 
-  import pdb
-  #pdb.set_trace()
+
   # In most cases, the default data format NCHW instead of NHWC should be
   # used for a significant performance boost on GPU/TPU. NHWC should be used
   # only if the network needs to be run on CPU since the pooling operations
@@ -317,7 +316,7 @@ def nas_model_fn(features, labels, mode, params):
   warmup_steps = FLAGS.warmup_steps
   #FIXME : overide dropout rate
   dropout_rate = nas_utils.build_dropout_rate(global_step, warmup_steps)
-  logits, runtime_val, variables = supernet_macro.build_supernet(
+  logits, runtime_val, power, variables = supernet_macro.build_supernet(
       features,
       model_name=FLAGS.model_name,
       training=is_training,
@@ -351,6 +350,7 @@ def nas_model_fn(features, labels, mode, params):
   runtime_lambda = nas_utils.build_runtime_lambda(global_step, 
                         warmup_steps, FLAGS.runtime_lambda_val)
   runtime_loss = runtime_lambda * 1e3 * tf.log(runtime_val)  # 1e3 to sec
+  #power_loss = runtime_lambda 
 
   # dstamoulis NOTE: No reshaping led to crashing:
   # ValueError: Cannot reshape a tensor with 2 elements to shape [1] 
@@ -409,7 +409,7 @@ def nas_model_fn(features, labels, mode, params):
 
 
     if not FLAGS.skip_host_call:
-      def host_call_fn(dropout,gs, loss, lr, runtime, runtime_loss,
+      def host_call_fn(loss, dropout,gs, cross_entropy, lr, runtime, runtime_loss, power,
               t5x5_1, t50c_1, t100c_1, t5x5_2, t50c_2, t100c_2, 
               t5x5_3, t50c_3, t100c_3, t5x5_4, t50c_4, t100c_4, 
               t5x5_5, t50c_5, t100c_5, t5x5_6, t50c_6, t100c_6, 
@@ -505,8 +505,10 @@ def nas_model_fn(features, labels, mode, params):
         with tf.contrib.summary.create_file_writer(
             FLAGS.model_dir, max_queue=FLAGS.iterations_per_loop).as_default():
           with tf.contrib.summary.always_record_summaries():
-            tf.contrib.summary.scalar('a_loss', loss[0], step=gs)
+            tf.contrib.summary.scalar('a_tot_loss', loss[0], step=gs)
+            tf.contrib.summary.scalar('a_cross_entropy', cross_entropy[0], step=gs)
             tf.contrib.summary.scalar('a_learning_rate', lr[0], step=gs)
+            tf.contrib.summary.scalar('a_power', power[0], step=gs)
             #tf.contrib.summary.scalar('current_epoch', ce[0], step=gs)
             tf.contrib.summary.scalar('a_runtime_ms', runtime[0], step=gs)
             tf.contrib.summary.scalar('a_runtime_loss', runtime_loss[0], step=gs)
@@ -526,11 +528,13 @@ def nas_model_fn(features, labels, mode, params):
       # expects [batch_size, ...] Tensors, thus reshape to introduce a batch
       # dimension. These Tensors are implicitly concatenated to [params['batch_size']].
       gs_t = tf.reshape(global_step, [1])
-      loss_t = tf.reshape(cross_entropy, [1])
+      cross_entropy_t = tf.reshape(cross_entropy, [1])
+      loss_t = tf.reshape(loss, [1])
       lr_t = tf.reshape(learning_rate, [1])
       runtime_t = tf.reshape(runtime_val, [1])
       runtime_loss_t = tf.reshape(runtime_loss, [1])
       dropout_rate_t = tf.reshape(dropout_rate, [1])
+      power_t =  tf.reshape(power, [1])
 
 
       # indicators = variables['indicators']
@@ -550,7 +554,7 @@ def nas_model_fn(features, labels, mode, params):
               v = values[key_][decision_label]
               variables_list.append(tf.reshape(v, [1]))
 
-      host_call = (host_call_fn, [dropout_rate_t, gs_t, loss_t, lr_t, runtime_t, runtime_loss_t] + variables_list)
+      host_call = (host_call_fn, [loss_t,dropout_rate_t, gs_t, cross_entropy_t, lr_t, runtime_t, runtime_loss_t, power_t] + variables_list)
 
   else:
     train_op = None
