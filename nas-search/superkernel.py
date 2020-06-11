@@ -74,8 +74,7 @@ class DepthwiseConv2DMasked(tf.keras.layers.DepthwiseConv2D):
 
 
   def build(self, input_shape):
-    import pdb
-    #pdb.set_trace()
+
 
     # NOTE: necessary for defining a Keras layer!
     # https://keras.io/layers/writing-your-own-keras-layers/
@@ -181,13 +180,10 @@ class DepthwiseConv2DMasked(tf.keras.layers.DepthwiseConv2D):
         ratio = self.R3x3 / self.R5x5
         runtime_channels = self.d50c * (self.R50c + self.d100c * (self.R100c-self.R50c)) 
         runtime = runtime_channels * ratio + runtime_channels * (1-ratio) * self.d5x5
-
       self.runtime_reg = runtime
 
 
   def call(self, inputs, total_runtime, training=None):
-    #import pdb
-    #pdb.set_trace()
     outputs = K.depthwise_conv2d(
         inputs,
         self.depthwise_kernel_masked,

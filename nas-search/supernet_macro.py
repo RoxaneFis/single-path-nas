@@ -143,7 +143,7 @@ def single_path_search(depth_multiplier=None):
   return decoder.decode(blocks_args), global_params
 
 
-def build_supernet(images, model_name, training, override_params=None, dropout_rate=None):
+def build_supernet(images, model_name, training, override_params=None, dropout_rate=None, model_dir=None):
   """A helper function to creates the NAS Supernet and returns predicted logits.
 
   Args:
@@ -173,11 +173,13 @@ def build_supernet(images, model_name, training, override_params=None, dropout_r
     global_params = global_params._replace(**override_params)
 
   with tf.variable_scope(model_name):
-    model = singlepath_supernet.SinglePathSuperNet(blocks_args, global_params, dropout_rate)
-    logits, total_runtime, power = model(images, training=training)
+    import pdb
+    #pdb.set_trace()
+    model = singlepath_supernet.SinglePathSuperNet(blocks_args, global_params, dropout_rate, model_dir)
+    logits, total_runtime, predictor_params = model(images, training=training)
 
   logits = tf.identity(logits, 'logits')
-  return logits, total_runtime, power, {'t':model.thresholds, \
+  return logits, total_runtime, predictor_params, {'t':model.thresholds, \
                                  'norm':model.norms, \
                                  'diff': model.differences, \
                                  'i': model.indicators}

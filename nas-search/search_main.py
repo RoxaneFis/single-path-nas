@@ -17,6 +17,7 @@ import time
 from absl import app
 from absl import flags
 import numpy as np
+from numpy import loadtxt
 import tensorflow as tf
 
 import imagenet_input
@@ -27,6 +28,10 @@ from tensorflow.contrib.training.python.training import evaluation
 from tensorflow.core.protobuf import rewriter_config_pb2
 from tensorflow.python.estimator import estimator
 from tensorflow.python.keras import backend as K
+
+#RF Added
+from predictor_parameters import TreatNeuralNetwork
+from predictor import Predictor, PredictorModel
 
 
 FLAGS = flags.FLAGS
@@ -316,12 +321,13 @@ def nas_model_fn(features, labels, mode, params):
   warmup_steps = FLAGS.warmup_steps
   #FIXME : overide dropout rate
   dropout_rate = nas_utils.build_dropout_rate(global_step, warmup_steps)
-  logits, runtime_val, power, variables = supernet_macro.build_supernet(
+  logits, runtime_val, predictor_params, variables = supernet_macro.build_supernet(
       features,
       model_name=FLAGS.model_name,
       training=is_training,
       override_params=override_params, 
-      dropout_rate=dropout_rate)
+      dropout_rate=dropout_rate,
+      model_dir=FLAGS.model_dir)
 
   if mode == tf.estimator.ModeKeys.PREDICT:
     predictions = {
@@ -359,7 +365,43 @@ def nas_model_fn(features, labels, mode, params):
   # --> solution: matching size, so that trainin_loop while does not complain
   runtime_loss = tf.reshape(runtime_loss, shape=cross_entropy.shape)
 
+  # PREDICTOR --------------------------------
+  # import pdb
+  # #pdb.set_trace()
+  # powers = {}
+
+  # #Load Neural Networks parameters - #FLOPS, #weights...
+  # # FIXME : where std is loaded
+  # TreatNN = TreatNeuralNetwork(*predictor_params)
+  # nn_array = TreatNN.NN_to_array()
+  # nn_array = nn_array.reshape((1, *nn_array.shape))
+  
+  # # sess = tf.Session()
+  # # for i in range(nn_array.shape[1]):
+  # #     for j in range(nn_array.shape[2]):
+  # #       if(type(nn_array[0][i][j]) != float ):
+  # #         nn_array[0][i][j]=nn_array[0][i][j].eval(session=sess)
+
+  # #Load pretrained predictor
+  # predictor = PredictorModel()
+  # model_path = "/Users/roxanefischer/Desktop/single_path_nas/single-path-nas/HAS/results_best_models/multiply/with_inversed_hw/model_1_plus_12161_param_0.131_error/model_1_plus_12161_param"
+  # predictor.load_weights(model_path)
+
+  # #Load the different hardware parameters representation
+  # hw_arrays = loadtxt('single-path-nas/HAS/params/hw_centroids.csv', delimiter=',')
+  # for hw_array in hw_arrays: 
+  #   hw_array = np.array([ 0 , 0, 0,  0, 0, 0,0,0,0,0,0,0])
+  #   hw_array = hw_array.reshape((1, *hw_array.shape))
+  #   power = predictor.predict([nn_array, hw_array])
+  
+  # # hw_array = np.array([ 0.8552576 , -0.47734305, -0.62680401,  0.57911723,  0.37841259,
+  # #    -0.23434365, -0.64634273,  0.68297377,  0.06787059, -1.01696994,
+  # #    -0.81343443, -0.49667088])
+
+  #---------------------------------------------
   # Add weight decay to the loss for non-batch-normalization variables.
+  power = cross_entropy
+
   loss = cross_entropy + FLAGS.weight_decay * tf.add_n(
       [tf.nn.l2_loss(v) for v in tf.trainable_variables()
        if 'batch_normalization' not in v.name]) + runtime_loss 
@@ -514,13 +556,18 @@ def nas_model_fn(features, labels, mode, params):
             tf.contrib.summary.scalar('a_runtime_loss', runtime_loss[0], step=gs)
             tf.contrib.summary.scalar('a_dropout_rate', dropout_rate, step=gs)
 
-            for letter, var_list in {'t':t_list, 'n':n_list,'i':i_list}.items():
+            for letter, var_list in {'t':t_list, 'd':d_list,'i':i_list}.items():
             #for letter, var_list in {'t':t_list, 'n':n_list,'d':d_list,'i':i_list}.items():
               for idx, t_ in enumerate(var_list):
-                for label_, t_tensor in zip([f'{letter}5x5_',f'{letter}50c_',f'{letter}100c_'], t_):
-                  sum_label_ = label_ + str(idx+1) 
+                for label_, t_tensor in zip([("{}5x5_".format(letter)),("{}50c_".format(letter)),("{}100c_".format(letter))], t_):
+                  sum_label_ = label_ + str(idx+1)
                   tf.contrib.summary.scalar(sum_label_, t_tensor[0], step=gs)
             return tf.contrib.summary.all_summary_ops()
+
+
+
+
+                    #tf.logging.warn('Finished training up to step %d. Elapsed seconds %d.',next_checkpoint, int(time.time() - start_timestamp))
 
 
       # To log the loss, current learning rate, and epoch for Tensorboard, the
@@ -595,7 +642,8 @@ def nas_model_fn(features, labels, mode, params):
       }
 
     eval_metrics = (metric_fn, [labels, logits])
-
+  import pdb
+  #pdb.set_trace()
   num_params = np.sum([np.prod(v.shape) for v in tf.trainable_variables()])
   tf.logging.warn('number of trainable parameters: {}'.format(num_params))
 

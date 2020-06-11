@@ -26,8 +26,10 @@ import json
 
 # dstamoulis: definition of masked layer (DepthwiseConv2DMasked)
 from superkernel import *
-from nn_treatment import TreatNeuralNetwork
+from predictor_parameters import TreatNeuralNetwork
 from predictor import Predictor, PredictorModel
+
+from parse_search_output import convert_indicators, parse_indicators_single_path_nas
 
 import pdb
 #pdb.set_trace()
@@ -247,8 +249,6 @@ class MBConvBlock(object):
     return tf.sigmoid(se_tensor) * input_tensor
 
   def call(self, inputs, runtime, training=True):
-    import pdb
-    #pdb.set_trace()
     """Implementation of MBConvBlock call().
 
     Args:
@@ -291,7 +291,7 @@ class SinglePathSuperNet(tf.keras.Model):
      Based on MNasNet search space: https://arxiv.org/abs/1807.11626
   """
 
-  def __init__(self, blocks_args=None, global_params=None,dropout_rate=None):
+  def __init__(self, blocks_args=None, global_params=None,dropout_rate=None, model_dir=None):
     """Initializes an `SuperNet` instance.
 
     Args:
@@ -308,6 +308,7 @@ class SinglePathSuperNet(tf.keras.Model):
     self._blocks_args = blocks_args
     self.endpoints = None
     self.dropout_rate = dropout_rate
+    self._model_dir = model_dir
 
     self._search_space = global_params.search_space
 
@@ -322,7 +323,6 @@ class SinglePathSuperNet(tf.keras.Model):
 
   def _build(self):
     """Builds the supernet."""
-
     self._blocks = []
     # Builds blocks.
     for block_args in self._blocks_args:
@@ -397,6 +397,8 @@ class SinglePathSuperNet(tf.keras.Model):
     else:
       self._dropout = None
 
+
+
   def call(self, inputs, training=True):
     """Implementation of SuperNet call().
 
@@ -426,7 +428,28 @@ class SinglePathSuperNet(tf.keras.Model):
     tf.logging.info('Built stem layers with output shape: %s' % outputs.shape)
     self.endpoints['stem'] = outputs
     # Calls blocks.
-    for idx, block in enumerate(self._blocks):
+
+    # RF Added : custom blocks
+
+
+
+    # RF : deep copy of blocks to encode network + load indic by EventAccumluator
+    self._search_blocks=[BlockArgs(*block._block_args)  for block in self._blocks]
+    # tf_size_guidance = {
+    #   'compressedHistograms': 10,
+    #   'images': 0,
+    #   'scalars': 100,
+    #   'histograms': 1
+    # }
+    # try:
+    # # Pare EventAccumulator
+    #   inds = parse_indicators_single_path_nas(self._model_dir, tf_size_guidance)
+    # except Exception as err:
+    #   #Beggining : before EventAccumulator
+    #   inds = [[1.0,1.0,1.0] for k in range(20)]
+
+
+    for idx, block in enumerate(self._blocks): # 22 : 1 a 21
       with tf.variable_scope('mnas_blocks_%s' % idx):
         outputs, total_runtime = block.call(outputs, total_runtime, training=training)
         self.endpoints['block_%s' % idx] = outputs
@@ -436,6 +459,30 @@ class SinglePathSuperNet(tf.keras.Model):
                   'i5x5': block._depthwise_conv.d5x5,
                   'i50c': block._depthwise_conv.d50c,
                   'i100c': block._depthwise_conv.d100c}
+          # The 20 personnalized ConvBlocks
+          # if idx > 0 and idx < 21:
+          # k, exp, skip = convert_indicators(inds[idx-1]) #first block (idx=0) is not customed
+          # if skip == True:
+          #   del self._search_blocks[idx]
+          #   idx = idx -1
+          # else :
+          #   self._search_blocks[idx] = self._search_blocks[idx]._replace(kernel_size = k)
+          #   self._search_blocks[idx] = self._search_blocks[idx]._replace(expand_ratio = exp)
+
+          # def delete_block():
+          #   #del self._search_blocks[idx]
+          #   #idx = idx -1
+          #   return skip
+          
+          # def update_block():
+          #     self._search_blocks[idx] = self._search_blocks[idx]._replace(kernel_size = k)
+          #     self._search_blocks[idx] = self._search_blocks[idx]._replace(expand_ratio = exp)
+          #     return skip
+
+          # y = tf.cond(skip, delete_block, update_block)
+
+
+
           ## RF Added
           self.differences['block_%s' % idx] = {
                   'diff5x5': block._depthwise_conv.x5x5,
@@ -454,8 +501,8 @@ class SinglePathSuperNet(tf.keras.Model):
           for k, v in six.iteritems(block.endpoints):
             self.endpoints['block_%s/%s' % (idx, k)] = v
     # Calls final layers and returns logits.
-    import pdb
-    #pdb.set_trace()
+
+
     with tf.variable_scope('mnas_head'):
       outputs = tf.nn.relu(
           self._bn1(self._conv_head(outputs), training=training))
@@ -464,31 +511,17 @@ class SinglePathSuperNet(tf.keras.Model):
         outputs = self._dropout(outputs, training=training)
       outputs = self._fc(outputs)
       self.endpoints['head'] = outputs
+
+
    
-   
-    import pdb
-    #pdb.set_trace()
+  
+    #print(f'SUM WEIGHTS SINGLEPATHNAS : {self.count_params()}')
+   # predictor_params = [self._conv_stem,self._blocks,self._conv_head,self._global_params.num_classes]
+    predictor_params = [self._conv_stem,self._search_blocks,self._conv_head,self._global_params.num_classes]
     
-    TreatNN = TreatNeuralNetwork(self._conv_stem,self._blocks,self._conv_head,self._global_params.num_classes)
-    nn_array = TreatNN.NN_to_array()
-
-    predictor = PredictorModel()
-    model_path = "/Users/roxanefischer/Desktop/single_path_nas/single-path-nas/HAS/results_best_models/multiply/with_inversed_hw/model_1_plus_12161_param_0.131_error/model_1_plus_12161_param"
-    #predictor.compile(tf.keras.optimizers.Adam())
-    predictor.load_weights(model_path)
-
-    hw_array = np.array([ 0 , 0, 0,  0, 0, 0,0,0,0,0,0,0])
-
-    # hw_array = np.array([ 0.8552576 , -0.47734305, -0.62680401,  0.57911723,  0.37841259,
-    #    -0.23434365, -0.64634273,  0.68297377,  0.06787059, -1.01696994,
-    #    -0.81343443, -0.49667088])
-    
-    hw_array = hw_array.reshape((1, *hw_array.shape))
-    nn_array = nn_array.reshape((1, *nn_array.shape))
-    
-    power = predictor.predict([nn_array, hw_array])
 
 
     #### self._blocks[0]._block_args !!!!!
     # [self._blocks[i]._block_args for i in range(len(self._blocks))]
-    return outputs, total_runtime, power
+
+    return outputs, total_runtime, predictor_params
