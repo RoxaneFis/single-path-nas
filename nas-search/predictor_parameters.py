@@ -42,9 +42,12 @@ def convert_indicators(i5x5, i50c, i100c):
         zero = tf.fill(i50c.shape, 0.0)
     # one = tf.constant(1.0) 
 
-    skip = tf.cond(tf.reduce_mean(i50c - zero) < 0,lambda: tf.constant(True), lambda:tf.constant(False)) #shape ()
+    skip = tf.cond(tf.reduce_mean(i50c - zero) <= 0,lambda: tf.constant(True), lambda:tf.constant(False)) #shape ()
     k = 3 + 2* i5x5 #shape 1
     exp = 3 + 3* i100c
+    # skip = False
+    # k = 5
+    # exp = 6
 
     return k, exp, skip
 
@@ -117,21 +120,24 @@ class ModelToList():
 
             
 class TreatNeuralNetwork():
-    def __init__(self, conv_stem, blocks, conv_head, num_classes):
+    def __init__(self, conv_stem, blocks, conv_head, num_classes, blocks_to_delete, model_path):
         self.Model_to_List =  ModelToList(conv_stem, blocks, conv_head, num_classes)
+        self._blocks_to_keep = blocks_to_delete
         self.columns_names = ['exp', 'c_out', 's', 'k', 'skip', 'convtype','use_bias']
         self.conv_types = ['conv', 'dw', 'inv']
         self.values_to_keep = ['FLOPS', 'weights', 'tensor_in', 'tensor_out', 'hidden_dim', 'k2', 'skip']
         self.separate_types = False
         self.max_blocks=37  # FIXME : hardcoded
-        self.std = np.loadtxt('single-path-nas/HAS/params/std.csv', delimiter=',')
+        try :
+            self.std = np.loadtxt(f'{model_path}/std.csv', delimiter=',')
+        except Exception as err :
+            print("The standard deviation values used for normalising the predictor inputs are not found")
 
 
     def build_list(self):
         self.Model_to_List._build()
         self.list = self.Model_to_List.list
-        import pdb
-        #pdb.set_trace()
+
 
     @staticmethod
     def conv_flops(hout,cin,cout,k,tensor_in,skip=0):
@@ -191,13 +197,14 @@ class TreatNeuralNetwork():
         NN_frame['convtype']= NN_frame['convtype'].apply(lambda x : 'conv' if x=='conv_norelu' else x)
 
         NN_frame['c_in'] = np.roll(NN_frame['c_out'], 1)
-        NN_frame['c_in'][0]=3 # RGB channels
+        NN_frame.loc[0,'c_in']=3 # RGB channels
 
         NN_frame['k2']=NN_frame['k'].apply(lambda x : x*x)
         NN_frame['hidden_dim']=NN_frame['exp']*NN_frame['c_in']
 
         NN_frame['h_in'] = np.nan
-        NN_frame['h_in'][0]=224 # Size imagenet - hardcoded
+        #NN_frame['h_in'][0]=224 # Size imagenet - hardcoded
+        NN_frame.loc[0,'h_in']=224
         for i in range(1, len(NN_frame)):
             if NN_frame.loc[i-1, 's']==1:
                 NN_frame.loc[i, 'h_in']=NN_frame.loc[i-1, 'h_in']
@@ -206,9 +213,9 @@ class TreatNeuralNetwork():
             else : 
                 raise NameError('Dont know the paddind')
 
-
         NN_frame['h_out'] = np.roll(NN_frame['h_in'], -1)
-        NN_frame['h_out'][NN_frame.last_valid_index()]=NN_frame['h_in'][NN_frame.last_valid_index()]/NN_frame.loc[NN_frame.last_valid_index(), 's']
+        NN_frame.loc[NN_frame.last_valid_index(), 'h_out']=NN_frame['h_in'][NN_frame.last_valid_index()]/NN_frame.loc[NN_frame.last_valid_index(), 's']
+       # NN_frame['h_out'][NN_frame.last_valid_index()]=NN_frame['h_in'][NN_frame.last_valid_index()]/NN_frame.loc[NN_frame.last_valid_index(), 's']
 
         NN_frame['tensor_in']=NN_frame['c_in']*NN_frame['h_in']*NN_frame['h_in']
         NN_frame['tensor_out']=NN_frame['c_out']*NN_frame['h_out']*NN_frame['h_out']
@@ -224,19 +231,38 @@ class TreatNeuralNetwork():
 
 
     def add_zero_blocks(self,arr):
-        zero_blocks = np.zeros((self.max_blocks-arr.shape[0],arr.shape[1]))
+        nb_zero_blocks = self.max_blocks-arr.shape[0]
+        # for ii in range(nb_zero_blocks):
+        #     self._blocks_to_keep.append
+
+        zero_blocks = np.zeros((nb_zero_blocks,arr.shape[1]))
         return np.append(arr, zero_blocks, axis=0)
+   
+   
+    # def complete_boolean_mask(self):
+    #     nb_blocks = self.max_blocks - len(self._blocks_to_keep) # 22
+    #     for i in 
 
     def normalize(self, arr):
         for i in range(arr.shape[1]): #nb of parameters
             arr[:,i]/= self.std[i]
         return arr
 
+
+
+
     def NN_to_array(self):
 
         self.build_list()
         NN_frame = pd.DataFrame(self.list, columns = self.columns_names)
+        import pdb
+        pdb.set_trace()
         numpy_array = self.treat_NN(NN_frame).to_numpy()
         numpy_array = self.add_zero_blocks(numpy_array)
         numpy_array = self.normalize(numpy_array)
+
+
         return numpy_array
+
+
+       # tf.boolean_mask(self._blocks_to_keep, hw_array_random)

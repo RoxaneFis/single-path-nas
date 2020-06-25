@@ -84,9 +84,9 @@ flags.DEFINE_string(
           ' stored.'))
 
 flags.DEFINE_string(
-    'predictor_dir', default=None,
-    help=('The directory where the predictor and training/evaluation summaries are'
-          ' stored.'))
+    'predictor_checkpoint', default='/Users/roxanefischer/Desktop/single_path_nas/single-path-nas/HAS/results_best_models/model_1_12161_param_0.131_error/model_1_plus_12161_param', 
+    help=('The checkpoint where the predictor is stored.'))
+
 
 flags.DEFINE_string(
     'model_name',
@@ -334,6 +334,7 @@ def nas_model_fn(features, labels, mode, params):
   if FLAGS.min_depth:
     override_params['min_depth'] = FLAGS.min_depth
 
+
   global_step = tf.train.get_global_step()
   # FIXME
   if global_step is None: #first call when just want to create the graph
@@ -344,14 +345,13 @@ def nas_model_fn(features, labels, mode, params):
   #FIXME : overide dropout rate
   dropout_rate = nas_utils.build_dropout_rate(global_step, warmup_steps)
   g = tf.get_default_graph()
-  with g.as_default():
-    logits, runtime_val, predictor_params, variables = supernet_macro.build_supernet(
-        features,
-        model_name=FLAGS.model_name,
-        training=is_training,
-        override_params=override_params, 
-        dropout_rate=dropout_rate,
-        model_dir=FLAGS.model_dir)
+  logits, runtime_val, predictor_params, variables = supernet_macro.build_supernet(
+      features,
+      model_name=FLAGS.model_name,
+      training=is_training,
+      override_params=override_params, 
+      dropout_rate=dropout_rate,
+      model_dir=FLAGS.model_dir)
 
 
   # logits, runtime_val, power, variables = supernet_macro.build_supernet(
@@ -361,211 +361,124 @@ def nas_model_fn(features, labels, mode, params):
   #     override_params=override_params, 
   #     dropout_rate=dropout_rate,
   #     model_dir=FLAGS.model_dir)
-  with g.as_default():
-    if mode == tf.estimator.ModeKeys.PREDICT:
-      predictions = {
-          'classes': tf.argmax(logits, axis=1),
-          'probabilities': tf.nn.softmax(logits, name='softmax_tensor')
-      }
-      return tf.estimator.EstimatorSpec(
-          mode=mode,
-          predictions=predictions,
-          export_outputs={
-              'classify': tf.estimator.export.PredictOutput(predictions)
-          })
 
-    # If necessary, in the model_fn, use params['batch_size'] instead the batch
-    # size flags (--train_batch_size or --eval_batch_size).
-    batch_size = params['batch_size']   # pylint: disable=unused-variable
+  if mode == tf.estimator.ModeKeys.PREDICT:
+    predictions = {
+        'classes': tf.argmax(logits, axis=1),
+        'probabilities': tf.nn.softmax(logits, name='softmax_tensor')
+    }
+    return tf.estimator.EstimatorSpec(
+        mode=mode,
+        predictions=predictions,
+        export_outputs={
+            'classify': tf.estimator.export.PredictOutput(predictions)
+        })
 
-    # Calculate loss, which includes softmax cross entropy and L2 regularization.
-    one_hot_labels = tf.one_hot(labels, FLAGS.num_label_classes)
-    cross_entropy = tf.losses.softmax_cross_entropy(
-        logits=logits,
-        onehot_labels=one_hot_labels,
-        label_smoothing=FLAGS.label_smoothing)
+  # If necessary, in the model_fn, use params['batch_size'] instead the batch
+  # size flags (--train_batch_size or --eval_batch_size).
+  batch_size = params['batch_size']   # pylint: disable=unused-variable
 
+  # Calculate loss, which includes softmax cross entropy and L2 regularization.
+  one_hot_labels = tf.one_hot(labels, FLAGS.num_label_classes)
+  cross_entropy = tf.losses.softmax_cross_entropy(
+      logits=logits,
+      onehot_labels=one_hot_labels,
+      label_smoothing=FLAGS.label_smoothing)
 
-    runtime_lambda = nas_utils.build_runtime_lambda(global_step, 
-                          warmup_steps, FLAGS.runtime_lambda_val)
-
-    runtime_loss = runtime_lambda * 1e3 * tf.log(runtime_val)  # 1e3 to sec
-
-    runtime_loss = tf.reshape(runtime_loss, shape=cross_entropy.shape)
-
-    # PREDICTOR --------------------------------
-    powers = {}
-    path = "/Users/roxanefischer/Desktop/single_path_nas/single-path-nas/HAS/results_best_models/model_1_12161_param_0.131_error"
-    #Load Neural Networks parameters - #FLOPS, #weights...
-
-  #g = tf.get_default_graph()
-  with g.as_default():
-    with tf.name_scope("predictor_param"):
-      #predictor = PredictorModel_fewWeights()
-      predictor = PredictorModel()
+  runtime_lambda = nas_utils.build_runtime_lambda(global_step, 
+                        warmup_steps, FLAGS.runtime_lambda_val)
+  runtime_loss = runtime_lambda * 1e3 * tf.log(runtime_val)  # 1e3 to sec
+  runtime_loss = tf.reshape(runtime_loss, shape=cross_entropy.shape)
 
 
-      with tf.name_scope("hw_array"):
-        #hw_array = np.array([ 10.0,10.0,10.0,10.0,10.0,10.0,10.0,10.0,10.0,10.0,10.0,10.0])
-        hw_array = np.array([1.023785822261557565e-01,-4.262310244296395600e-01,2.295995016604397698e-01,-4.441886177106757483e-01,-8.459185226109141587e-01,-2.938802963497538223e-01,-3.464242712811745339e-01,4.572050514380619490e-01,-6.563799113750447001e-01,3.803529224492657179e-01,1.081335456679819673e+00,-2.117873165907936950e-01])
-        hw_array = hw_array.reshape((1, *hw_array.shape))
-        hw_array = tf.convert_to_tensor(hw_array, dtype=tf.float32)
-        hw_array_random = tf.truncated_normal((1,12), stddev=1,seed=1, mean=0, dtype=tf.float32)
+  # PREDICTOR --------------------------------
+  powers = {}
+  #Load Neural Networks parameters - #FLOPS, #weights...
+  with tf.name_scope("predictor_param"):
+    #predictor = PredictorModel_fewWeights()
+    predictor = PredictorModel()
+    predictor.trainable = False
 
+    with tf.name_scope("hw_array"):
+      hw_array_test = np.array([1.023785822261557565e-01,-4.262310244296395600e-01,2.295995016604397698e-01,-4.441886177106757483e-01,-8.459185226109141587e-01,-2.938802963497538223e-01,-3.464242712811745339e-01,4.572050514380619490e-01,-6.563799113750447001e-01,3.803529224492657179e-01,1.081335456679819673e+00,-2.117873165907936950e-01])
+      hw_array_test = hw_array_test.reshape((1, *hw_array_test.shape))
+      hw_array_test = tf.convert_to_tensor(hw_array_test, dtype=tf.float32)
+      hw_array_random = tf.truncated_normal((1,12), stddev=1,seed=1, mean=0, dtype=tf.float32)
 
-      # FIXME : where std is loaded
-      #TreatNN = TreatNeuralNetwork(*predictor_params, path)
-      with tf.name_scope("nn_array"):
-        def array_from_indicators():
-          nn_array = TreatNeuralNetwork(*predictor_params, path).NN_to_array()
-          #nn_array = TreatNeuralNetwork(*predictor_params, path).NN_to_array().astype(np.float32)
-          #Convert array to tesnor
-          for i in range(nn_array.shape[0]):
-              for j in range(nn_array.shape[1]):
-                nn_array[i][j] = tf.convert_to_tensor((nn_array[i][j],), dtype=tf.float32)
-                nn_array[i][j] = tf.reshape(nn_array[i][j], [1])
-          blocks = []
-          for i in range(nn_array.shape[0]):
-            blocks.append(tf.stack(list(nn_array[i]), axis=0))
-          nn_array = tf.stack(blocks)
-          nn_array = tf.reshape(nn_array,[1,37,7])
-          return nn_array
-        
+    # FIXME : where std is loaded
+    with tf.name_scope("nn_array"):
+      def array_from_indicators():
+        path_predictor_checkpoint = FLAGS.predictor_checkpoint
+        dirname_predictor, filename_predictor = os.path.split(os.path.abspath(path_predictor_checkpoint))  
+        nn_array = TreatNeuralNetwork(*predictor_params, dirname_predictor).NN_to_array()
+        #Convert array to tesnor
+        for i in range(nn_array.shape[0]):
+            for j in range(nn_array.shape[1]):
+              nn_array[i][j] = tf.convert_to_tensor((nn_array[i][j],), dtype=tf.float32)
+              nn_array[i][j] = tf.reshape(nn_array[i][j], [1])
+        blocks = []
+        for i in range(nn_array.shape[0]):
+          blocks.append(tf.stack(list(nn_array[i]), axis=0))
+        nn_array = tf.stack(blocks)
+        nn_array = tf.reshape(nn_array,[1,37,7])
+        return nn_array
+      
 
-
-        def proxy_array():
-          return tf.truncated_normal((1,37,7), stddev=1,seed=1, mean=0, dtype=tf.float32)
-
-
-      # nn_array =  tf.cond(tf.math.equal(global_step,0), proxy_array, array_from_indicators)
-      # hw_array = tf.cond(tf.math.equal(global_step,0), lambda : hw_array_random, lambda : hw_array)
-
-        nn_array_test= np.array([[7.66833971e-02, 1.81989163e-03, 1.11067407e+00, 2.91989295e+00,
-              9.66273081e-03, 7.37706287e-01, 0.00000000e+00],
-            [1.61887172e-01, 1.68508484e-03, 2.96179752e+00, 1.45994647e+00,
-              1.03069129e-01, 7.37706287e-01, 0.00000000e+00],
-            [2.41410695e-01, 1.31436618e-02, 1.48089876e+00, 5.47479928e-01,
-              3.09207386e-01, 2.04918413e+00, 2.53786884e+00],
-            [2.33511595e-01, 2.21420148e-02, 5.55337035e-01, 5.47479928e-01,
-              4.63811079e-01, 2.04918413e+00, 2.53786884e+00],
-            [2.33511595e-01, 2.21420148e-02, 5.55337035e-01, 5.47479928e-01,
-              4.63811079e-01, 2.04918413e+00, 2.53786884e+00],
-            [2.33511595e-01, 2.21420148e-02, 5.55337035e-01, 5.47479928e-01,
-              4.63811079e-01, 2.04918413e+00, 2.53786884e+00],
-            [1.28870709e-01, 2.69950592e-02, 5.55337035e-01, 2.28116637e-01,
-              4.63811079e-01, 2.04918413e+00, 2.53786884e+00],
-            [1.39898385e-01, 5.30801725e-02, 2.31390431e-01, 2.28116637e-01,
-              7.73018465e-01, 2.04918413e+00, 2.53786884e+00],
-            [1.39898385e-01, 5.30801725e-02, 2.31390431e-01, 2.28116637e-01,
-              7.73018465e-01, 2.04918413e+00, 2.53786884e+00],
-            [1.39898385e-01, 5.30801725e-02, 2.31390431e-01, 2.28116637e-01,
-              7.73018465e-01, 2.04918413e+00, 2.53786884e+00],
-            [8.83101622e-02, 7.33011906e-02, 2.31390431e-01, 1.14058318e-01,
-              7.73018465e-01, 2.04918413e+00, 2.53786884e+00],
-            [1.23201552e-01, 1.87044417e-01, 1.15695216e-01, 1.14058318e-01,
-              1.54603693e+00, 2.04918413e+00, 2.53786884e+00],
-            [1.23201552e-01, 1.87044417e-01, 1.15695216e-01, 1.14058318e-01,
-              1.54603693e+00, 2.04918413e+00, 2.53786884e+00],
-            [1.23201552e-01, 1.87044417e-01, 1.15695216e-01, 1.14058318e-01,
-              1.54603693e+00, 2.04918413e+00, 2.53786884e+00],
-            [1.33852023e-01, 2.03221232e-01, 1.15695216e-01, 1.36869982e-01,
-              1.54603693e+00, 2.04918413e+00, 2.53786884e+00],
-            [1.73402994e-01, 2.63277656e-01, 1.38834259e-01, 1.36869982e-01,
-              1.85524432e+00, 2.04918413e+00, 2.53786884e+00],
-            [1.73402994e-01, 2.63277656e-01, 1.38834259e-01, 1.36869982e-01,
-              1.85524432e+00, 2.04918413e+00, 2.53786884e+00],
-            [1.73402994e-01, 2.63277656e-01, 1.38834259e-01, 1.36869982e-01,
-              1.85524432e+00, 2.04918413e+00, 2.53786884e+00],
-            [1.20084070e-01, 3.79750720e-01, 1.38834259e-01, 6.84349910e-02,
-              1.85524432e+00, 2.04918413e+00, 2.53786884e+00],
-            [1.63384894e-01, 9.92447569e-01, 6.94171294e-02, 6.84349910e-02,
-              3.71048863e+00, 2.04918413e+00, 2.53786884e+00],
-            [1.63384894e-01, 9.92447569e-01, 6.94171294e-02, 6.84349910e-02,
-              3.71048863e+00, 2.04918413e+00, 2.53786884e+00],
-            [1.63384894e-01, 9.92447569e-01, 6.94171294e-02, 6.84349910e-02,
-              3.71048863e+00, 2.04918413e+00, 2.53786884e+00],
-            [2.08083593e-01, 1.26421805e+00, 6.94171294e-02, 1.14058318e-01,
-              3.71048863e+00, 7.37706287e-01, 0.00000000e+00],
-            [1.42006291e-01, 8.62763439e-01, 1.15695216e-01, 4.56233273e-01,
-              1.03069129e+00, 8.19673652e-02, 0.00000000e+00],
-            [8.87539318e-02, 5.39648421e-01, 4.62780863e-01, 7.12864490e-02,
-              4.12276514e+00, 8.19673652e-02, 0.00000000e+00],
-            [0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 0.00000000e+00,
-              0.00000000e+00, 0.00000000e+00, 0.00000000e+00],
-            [0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 0.00000000e+00,
-              0.00000000e+00, 0.00000000e+00, 0.00000000e+00],
-            [0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 0.00000000e+00,
-              0.00000000e+00, 0.00000000e+00, 0.00000000e+00],
-            [0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 0.00000000e+00,
-              0.00000000e+00, 0.00000000e+00, 0.00000000e+00],
-            [0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 0.00000000e+00,
-              0.00000000e+00, 0.00000000e+00, 0.00000000e+00],
-            [0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 0.00000000e+00,
-              0.00000000e+00, 0.00000000e+00, 0.00000000e+00],
-            [0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 0.00000000e+00,
-              0.00000000e+00, 0.00000000e+00, 0.00000000e+00],
-            [0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 0.00000000e+00,
-              0.00000000e+00, 0.00000000e+00, 0.00000000e+00],
-            [0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 0.00000000e+00,
-              0.00000000e+00, 0.00000000e+00, 0.00000000e+00],
-            [0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 0.00000000e+00,
-              0.00000000e+00, 0.00000000e+00, 0.00000000e+00],
-            [0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 0.00000000e+00,
-              0.00000000e+00, 0.00000000e+00, 0.00000000e+00],
-            [0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 0.00000000e+00,
-              0.00000000e+00, 0.00000000e+00, 0.00000000e+00]])
-        nn_array_test = nn_array_test.reshape((1, *nn_array_test.shape))
-        nn_array_test = tf.convert_to_tensor(nn_array_test, dtype=tf.float32)
-
-        hw_array_test = np.array([1.023785822261557565e-01,-4.262310244296395600e-01,2.295995016604397698e-01,-4.441886177106757483e-01,-8.459185226109141587e-01,-2.938802963497538223e-01,-3.464242712811745339e-01,4.572050514380619490e-01,-6.563799113750447001e-01,3.803529224492657179e-01,1.081335456679819673e+00,-2.117873165907936950e-01])
-        hw_array_test = hw_array_test.reshape((1, *hw_array_test.shape))
-        hw_array_test = tf.convert_to_tensor(hw_array_test, dtype=tf.float32)
-
-        zero =tf.constant(1, dtype = np.int64)
-        #nn_array =  tf.cond(tf.math.greater(zero,global_step), proxy_array, lambda : nn_array_test)
-        #hw_array = tf.cond(tf.math.greater(zero,global_step), lambda : hw_array_random, lambda : hw_array_test)
-        nn_array =  tf.cond(tf.math.greater(zero,global_step), proxy_array, array_from_indicators)
-        # hw_array = tf.cond(tf.math.greater(zero,global_step), lambda : hw_array_random, lambda : hw_array_test)
-
-        
-        power = predictor([nn_array_test, hw_array_test], training =False)
+    nn_array = array_from_indicators()
+    power = predictor([nn_array, hw_array_test], training =False)
+    power_loss =  power *  1e3
+    
 
 
 
+  # !!!!!!!!!!!! be sure param not updated
   #--------------------------------------------
   #Add weight decay to the loss for non-batch-normalization variables.
   # loss = cross_entropy + FLAGS.weight_decay * tf.add_n(
   #     [tf.nn.l2_loss(v) for v in tf.trainable_variables()
   #      if 'batch_normalization' not in v.name]) + runtime_loss 
-  
-  with g.as_default():
-    loss = cross_entropy  + runtime_loss 
 
 
-    if has_moving_average_decay:
-      ema = tf.train.ExponentialMovingAverage(
-          decay=FLAGS.moving_average_decay, num_updates=global_step)
-      ema_vars = tf.trainable_variables() + tf.get_collection('moving_vars')
-      for v in tf.global_variables():
-        #if v.name == 'predictor_param/dense_1/kernel:0':
-          #cross_entropy =v
-        # We maintain mva for batch norm moving mean and variance as well.
-        if 'moving_mean' in v.name or 'moving_variance' in v.name:
+  loss = power_loss
+
+
+  # if not (isinstance(global_step_tensor, variables.Variable) or
+  #         isinstance(global_step_tensor, ops.Tensor) or
+
+
+  #Ema_vars : Variables to optimize. It doesn't contain the predictor weights and the global_step.
+  #ema_vars =[var for var in tf.trainable_variables() if "predictor" not in var.name]
+  ema_vars = [var for var in tf.trainable_variables() if "predictor" not in var.name and var is not global_step]
+  predictor_vars = [var for var in tf.trainable_variables() if "predictor" in var.name]
+  if has_moving_average_decay:
+    ema = tf.train.ExponentialMovingAverage(
+        decay=FLAGS.moving_average_decay, num_updates=global_step)
+    # don't want weight decay for the pretrained predictor 
+
+    ema_vars += tf.get_collection('moving_vars')
+    for v in tf.global_variables():
+      #if v.name == 'predictor_param/dense_1/kernel:0':
+        #cross_entropy =v
+      # We maintain mva for batch norm moving mean and variance as well.
+      if 'moving_mean' in v.name or 'moving_variance' in v.name:
+        if "predictor" not in v.name:
           ema_vars.append(v)
-     
-      ema_vars = list(set(ema_vars))
+    ema_vars = list(set(ema_vars))
 
+
+
+
+
+  # if params['inside']==True:
+
+  #   cross_entropy = predictor_vars[0][0][0][0]
+  #   dropout_rate = hw_array_test[0][0]
 
 
   with g.as_default():
 
     host_call = None
     restore_vars_dict = None
-    #predictor.load_weights(model_path)
-    #restore_vars_dict = ema.variables_to_restore(predictor_params)
-     #ema.variables_to_restore(ema_vars)
-    # import pdb
-    # pdb.set_trace()
 
     if is_training:
 
@@ -591,17 +504,19 @@ def nas_model_fn(features, labels, mode, params):
       # the train operation.
       update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
       with tf.control_dependencies(update_ops):
-        train_op = optimizer.minimize(loss, global_step)
+        # var_list = ema_vars is the only way to not updade the predictors' parameters
+        train_op = optimizer.minimize(loss, global_step=global_step, var_list = ema_vars)
+
     
-    #predictor.load_weights(model_path)
-    #restore_vars_dict = ema.variables_to_restore(ema_vars)
 
-    # if has_moving_average_decay:
-    #   with tf.control_dependencies([train_op]):
-    #     train_op = ema.apply(ema_vars)
+    if has_moving_average_decay:
+      with tf.control_dependencies([train_op]):
+        train_op = ema.apply(ema_vars)
+
+    # <tf.Variable 'Variable:0' shape=() dtype=int64_ref>
 
 
-      if not FLAGS.skip_host_call:
+    if not FLAGS.skip_host_call:#
         def host_call_fn(loss, dropout,gs, cross_entropy, lr, runtime, runtime_loss, power,
                 t5x5_1, t50c_1, t100c_1, t5x5_2, t50c_2, t100c_2, 
                 t5x5_3, t50c_3, t100c_3, t5x5_4, t50c_4, t100c_4, 
@@ -717,36 +632,12 @@ def nas_model_fn(features, labels, mode, params):
 
 
 
-
-                      #tf.logging.warn('Finished training up to step %d. Elapsed seconds %d.',next_checkpoint, int(time.time() - start_timestamp))
-
-        # #global_step = nn_array[0][0][0]
-        # cross_entropy = nn_array[0][2][1]
-        # #cross_entropy=tf.cast(tf.math.equal(global_step,0), tf.float32)
-        # loss =  nn_array[0][2][2]
-        # learning_rate =  nn_array[0][2][3]
-        # runtime_val =  nn_array[0][2][4]
-        # runtime_loss =  nn_array[0][2][5]
-        # dropout_rate =  nn_array[0][2][0]
-
-
-        #cross_entropy = predictor.get_weights()[0][0]
-        #cross_entropy = tf.get_default_graph().get_tensor_by_name('predictor_param/dense_1/kernel:0')[0]
-        import pdb
-        
-      # pdb.set_trace()
-
-       # cross_entropy=cross_entropy[0]
-        # #loss =  predictor.get_weights()[0][0][0][1]
-        # learning_rate =  predictor.get_weights()[0][0][0][2]
-        # runtime_val =  predictor.get_weights()[0][0][0][3]
-        # runtime_loss =  predictor.get_weights()[0][0][0][4]
-        # dropout_rate =  predictor.get_weights()[0][0][0][5]
-
         # To log the loss, current learning rate, and epoch for Tensorboard, the
         # summary op needs to be run on the host CPU via host_call. host_call
         # expects [batch_size, ...] Tensors, thus reshape to introduce a batch
         # dimension. These Tensors are implicitly concatenated to [params['batch_size']].
+
+
         gs_t = tf.reshape(global_step, [1])
         cross_entropy_t = tf.reshape(cross_entropy, [1])
         loss_t = tf.reshape(loss, [1])
@@ -812,6 +703,7 @@ def nas_model_fn(features, labels, mode, params):
         }
 
       eval_metrics = (metric_fn, [labels, logits])
+
     num_params = np.sum([np.prod(v.shape) for v in tf.trainable_variables()])
     tf.logging.warn('number of trainable parameters: {}'.format(num_params))
 
@@ -821,28 +713,19 @@ def nas_model_fn(features, labels, mode, params):
 
 
   def _scaffold_fn():
-    #predictor.load_weights(model_path)
     saver = tf.train.Saver(restore_vars_dict)
-    #saver = tf.train.Saver()
-    #init_op = predictor.load_weights(model_path)
-   # local_init_op = tf.global_variables_initializer()
+    return tf.train.Scaffold(saver=saver)
 
-    return tf.train.Scaffold(saver)
-
-  import pdb
-  pdb.set_trace()
   #ONLY CALLED BEFRE TRAINING
   if params['inside']==False:
     global_step = tf.train.get_or_create_global_step()
     with tf.Session(graph=tf.get_default_graph()) as sess:
       # RESTORE PREDICTOR
-      
       sess.run(tf.global_variables_initializer())
      # model_path = "/Users/roxanefischer/Desktop/single_path_nas/single-path-nas/HAS/few_weights_0.794_error/few_weights"
-      model_path = "/Users/roxanefischer/Desktop/single_path_nas/single-path-nas/HAS/results_best_models/model_1_12161_param_0.131_error/model_1_plus_12161_param"
-      predictor.load_weights(model_path)
+      predictor.load_weights(FLAGS.predictor_checkpoint)
       saver_partial = tf.train.Saver( ) 
-      saver_partial.save(sess, "/Users/roxanefischer/Desktop/predictor_restore_hook/first_checkpoint")
+      saver_partial.save(sess, FLAGS.model_dir + "/predictor_checkpoint")
 
 
   return tf.contrib.tpu.TPUEstimatorSpec(
@@ -853,7 +736,6 @@ def nas_model_fn(features, labels, mode, params):
       host_call=host_call,
       eval_metrics=eval_metrics,
       scaffold_fn = None)
-     #scaffold_fn=_scaffold_fn )
      # scaffold_fn=_scaffold_fn if has_moving_average_decay else None)
 
 
@@ -1072,7 +954,7 @@ def main(unused_argv):
     #g = tf.get_default_graph()
     
     if FLAGS.mode == 'train':
-      #CALL NAS SEARCH GRAPH WHICH INCLUDES THE PREDICTOR
+      #First call to nas-search in order to load the pretrained pre
       features = tf.placeholder(dtype=tf.float32, shape=(224, 224, 3, 1))
       labels =  tf.placeholder(dtype=tf.int32, shape=(1,))
       params['batch_size']=FLAGS.train_batch_size
@@ -1097,6 +979,13 @@ def main(unused_argv):
 
     else:
       assert FLAGS.mode == 'train_and_eval'
+      
+      features = tf.placeholder(dtype=tf.float32, shape=(224, 224, 3, 1))
+      labels =  tf.placeholder(dtype=tf.int32, shape=(1,))
+      params['batch_size']=FLAGS.train_batch_size
+      params['inside']=False #false : call graph to restore predictor parameters
+      call_graph = nas_model_fn(features, labels, FLAGS.mode, params)
+      params['inside']=True
       while current_step < FLAGS.train_steps:
         # Train for up to steps_per_eval number of steps.
         # At the end of training, a checkpoint will be written to --model_dir.
@@ -1111,8 +1000,6 @@ def main(unused_argv):
         # may be excluded modulo the batch size. As long as the batch size is
         # consistent, the evaluated images are also consistent.
         tf.logging.warn('STarting to evaluate.')
-        import pdb 
-        #pdb.set_trace()
         eval_results = nas_est.evaluate(
             input_fn=imagenet_eval.input_fn,
             steps=FLAGS.num_eval_images // FLAGS.eval_batch_size)

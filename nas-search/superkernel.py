@@ -175,13 +175,13 @@ class DepthwiseConv2DMasked(tf.keras.layers.DepthwiseConv2D):
       self.depthwise_kernel_masked = \
             self.d50c * (kernel_50c + self.d100c *kernel_100c)
 
+
       # runtime term
       if self.runtimes is not None:
         ratio = self.R3x3 / self.R5x5
         runtime_channels = self.d50c * (self.R50c + self.d100c * (self.R100c-self.R50c)) 
         runtime = runtime_channels * ratio + runtime_channels * (1-ratio) * self.d5x5
       self.runtime_reg = runtime
-
 
   def call(self, inputs, total_runtime, training=None):
     outputs = K.depthwise_conv2d(
@@ -191,7 +191,6 @@ class DepthwiseConv2DMasked(tf.keras.layers.DepthwiseConv2D):
         padding=self.padding,
         dilation_rate=self.dilation_rate,
         data_format=self.data_format)
-
     if self.use_bias:
       outputs = K.bias_add(
               outputs,

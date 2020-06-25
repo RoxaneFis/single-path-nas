@@ -19,6 +19,7 @@ from __future__ import print_function
 
 import collections
 import numpy as np
+from numpy import loadtxt
 import six
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
@@ -26,10 +27,12 @@ import json
 
 # dstamoulis: definition of masked layer (DepthwiseConv2DMasked)
 from superkernel import *
-from predictor_parameters import TreatNeuralNetwork
+from predictor_parameters import TreatNeuralNetwork,convert_indicators 
 from predictor import Predictor, PredictorModel
 
-from parse_search_output import convert_indicators, parse_indicators_single_path_nas
+
+
+#from parse_search_output import parse_indicators_single_path_nas
 
 import pdb
 #pdb.set_trace()
@@ -448,7 +451,8 @@ class SinglePathSuperNet(tf.keras.Model):
     #   #Beggining : before EventAccumulator
     #   inds = [[1.0,1.0,1.0] for k in range(20)]
 
-
+    self._blocks_to_delete = []
+    self._blocks_to_delete.append(False) #block 0
     for idx, block in enumerate(self._blocks): # 22 : 1 a 21
       with tf.variable_scope('mnas_blocks_%s' % idx):
         outputs, total_runtime = block.call(outputs, total_runtime, training=training)
@@ -460,8 +464,10 @@ class SinglePathSuperNet(tf.keras.Model):
                   'i50c': block._depthwise_conv.d50c,
                   'i100c': block._depthwise_conv.d100c}
           # The 20 personnalized ConvBlocks
-          # if idx > 0 and idx < 21:
-          # k, exp, skip = convert_indicators(inds[idx-1]) #first block (idx=0) is not customed
+          assert (idx > 0 and idx < 21)
+
+          k, exp, skip = convert_indicators(block._depthwise_conv.d5x5, block._depthwise_conv.d50c, block._depthwise_conv.d100c) #first block (idx=0) is not customed
+          #k, exp, skip = convert_indicators(inds[idx-1]) #first block (idx=0) is not customed
           # if skip == True:
           #   del self._search_blocks[idx]
           #   idx = idx -1
@@ -469,18 +475,29 @@ class SinglePathSuperNet(tf.keras.Model):
           #   self._search_blocks[idx] = self._search_blocks[idx]._replace(kernel_size = k)
           #   self._search_blocks[idx] = self._search_blocks[idx]._replace(expand_ratio = exp)
 
-          # def delete_block():
-          #   #del self._search_blocks[idx]
-          #   #idx = idx -1
-          #   return skip
-          
-          # def update_block():
-          #     self._search_blocks[idx] = self._search_blocks[idx]._replace(kernel_size = k)
-          #     self._search_blocks[idx] = self._search_blocks[idx]._replace(expand_ratio = exp)
+          #update
+          self._search_blocks[idx] = self._search_blocks[idx]._replace(kernel_size = k)
+          self._search_blocks[idx] = self._search_blocks[idx]._replace(expand_ratio = exp)
+          self._blocks_to_delete.append(skip)
+
+          #y = tf.where(skip, lambda : one, lambda : zero)
+
+          #   import pdb
+          #   pdb.set_trace()
+
+          #   def add_delete_block(idx):
+          #     blocks_to_delete[idx]=1
+          #     #del self._search_blocks[idx]
+          #     #idx = idx -1
           #     return skip
-
-          # y = tf.cond(skip, delete_block, update_block)
-
+          #   #add_delete_block_plus = lambda idx: add_delete_block(idx)
+          #   def update_block(idx):
+          #       self._search_blocks[idx] = self._search_blocks[idx]._replace(kernel_size = k)
+          #       self._search_blocks[idx] = self._search_blocks[idx]._replace(expand_ratio = exp)
+          #       return skip  
+          #  # update_block_plus = lambda idx: update_block(idx)
+          #   y = tf.case(skip, lambda :add_delete_block(idx), lambda : update_block(idx))
+           
 
 
           ## RF Added
@@ -500,8 +517,21 @@ class SinglePathSuperNet(tf.keras.Model):
         if block.endpoints:
           for k, v in six.iteritems(block.endpoints):
             self.endpoints['block_%s/%s' % (idx, k)] = v
-    # Calls final layers and returns logits.
+    #Block 22
+    self._blocks_to_delete.append(False)
 
+
+
+    # Calls final layers and returns logits.
+    #import pdb
+    #pdb.set_trace()
+    #delete blocks with skip connectionn
+
+
+
+    #self._search_blocks = tf.boolean_mask(self._search_blocks, np.array(blocks_to_delete))
+   #self._search_blocks = tf.ragged.boolean_mask(self._search_blocks, np.array(blocks_to_delete))
+    #self._search_blocks = [block  for ind, block in enumerate(self._search_blocks) if blocks_to_delete[ind]!=1 ]
 
     with tf.variable_scope('mnas_head'):
       outputs = tf.nn.relu(
@@ -512,16 +542,83 @@ class SinglePathSuperNet(tf.keras.Model):
       outputs = self._fc(outputs)
       self.endpoints['head'] = outputs
 
+    
+  
+  #   #print(f'SUM WEIGHTS SINGLEPATHNAS : {self.count_params()}')
+  #  # predictor_params = [self._conv_stem,self._blocks,self._conv_head,self._global_params.num_classes]
+    predictor_params = [self._conv_stem,self._search_blocks,self._conv_head,self._global_params.num_classes, self._blocks_to_delete]
+
+  #     # PREDICTOR --------------------------------
+  #   powers = {}
+  #   #Load Neural Networks parameters - #FLOPS, #weights...
+  #   # FIXME : where std is loaded
+  #   TreatNN = TreatNeuralNetwork(*predictor_params)
+  #   with tf.variable_scope('nn_array'):
+  #     nn_array = TreatNN.NN_to_array()
+  #   # Convert array to tesnor
+  #     for i in range(nn_array.shape[0]):
+  #         for j in range(nn_array.shape[1]):
+  #           nn_array[i][j] = tf.convert_to_tensor((nn_array[i][j],), dtype=tf.float32)
+  #           nn_array[i][j] = tf.reshape(nn_array[i][j], [1])
+  #     blocks = []
+  #     for i in range(nn_array.shape[0]):
+  #       blocks.append(tf.stack(list(nn_array[i]), axis=0))
+  #     nn_array = tf.stack(blocks)
+  #     nn_array = tf.reshape(nn_array,[1,37,7])
+
+
+  #   model_path = "/Users/roxanefischer/Desktop/single_path_nas/single-path-nas/HAS/results_best_models/model_1_12161_param_0.131_error/model_1_plus_12161_param"
+   
+   
+  #   global graph
+  #   import random
+  #   graph = tf.get_default_graph()
+  #  # graph =  tf.Graph()
+  #   with graph.as_default():
+  #     predictor = PredictorModel()
+  #     predictor.load_weights(model_path)
+  #     #Load the different hardware parameters representation
+  #     hw_arrays = loadtxt('single-path-nas/HAS/params/hw_centroids.csv', delimiter=',')
+  #     for hw_array in hw_arrays: 
+  #       hw_array = np.array([ 0 , 0, 0,  0, 0, 0,0,0,0,0,0,0])
+  #       hw_array = hw_array.reshape((1, *hw_array.shape))
+  #       # import pdb
+  #       # pdb.set_trace()
+  #     #power = predictor.predict([nn_array, hw_array], steps=1)
+  #     power = predictor([nn_array, hw_array])
+  #       # except Exception as err : 
+  #     # nn_array = np.ones((1,37,7))
+  #     # for j in range(nn_array.shape[2]):
+  #     #   nn_array[0][0][j]=random.random()
+  #     # power = predictor.predict([nn_array, hw_array], steps=1)
+  #     print('----------------------------------')
+  #     print(nn_array)
+
+
+
 
    
-  
-    #print(f'SUM WEIGHTS SINGLEPATHNAS : {self.count_params()}')
-   # predictor_params = [self._conv_stem,self._blocks,self._conv_head,self._global_params.num_classes]
-    predictor_params = [self._conv_stem,self._search_blocks,self._conv_head,self._global_params.num_classes]
     
 
 
     #### self._blocks[0]._block_args !!!!!
     # [self._blocks[i]._block_args for i in range(len(self._blocks))]
-
+    #return outputs, total_runtime, power
     return outputs, total_runtime, predictor_params
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

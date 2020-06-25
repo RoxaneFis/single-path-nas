@@ -24,6 +24,7 @@ def build_learning_rate(initial_lr,
                         decay_epochs=2.4,
                         total_steps=None,
                         warmup_epochs=5):
+
   """Build learning rate."""
   if lr_decay_type == 'exponential':
     assert steps_per_epoch is not None
@@ -51,6 +52,8 @@ def build_learning_rate(initial_lr,
 
 
 def build_dropout_rate(global_step, warmup_steps=2502):
+  import pdb
+  #pdb.set_trace()
   tf.logging.info('Dropout rate warmup steps: %d' % warmup_steps)
   warmup_dropout_rate = tf.cast(0.6, tf.float32)
   final_dropout_rate = tf.cast(1e2, tf.float32)

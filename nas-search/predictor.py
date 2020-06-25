@@ -1,6 +1,7 @@
 import tensorflow as tf
-from tensorflow.keras import datasets, layers, models
+from tensorflow.keras import datasets, layers, models, Input, initializers
 from tensorflow.keras import backend as K
+import numpy as np
 
 class Predictor(tf.keras.Model):
     def __init__(self):
@@ -57,3 +58,55 @@ def PredictorModel():
     return full_model
 
 
+def PredictorModel_noWeights():
+    max_blocks = 37
+    nb_param = 7
+    nb_hw_param = 12
+
+    input_nn = Input(shape=(max_blocks, nb_param),  name='input_nn')
+    input_hw = Input(shape=(nb_hw_param,),  name='input_hw')
+
+    G_nn= np.ones((37,7))
+    G_hw = np.ones((nb_hw_param,))
+
+    output_nn = layers.Lambda(lambda x: x * G_nn)(input_nn)
+    output_nn =tf.keras.layers.Lambda( lambda x: K.sum(x, axis=1))(output_nn)
+    output_nn =tf.keras.layers.Lambda( lambda x: K.sum(x, axis=1))(output_nn)
+
+    output_hw = layers.Lambda(lambda x: x * G_hw)(input_hw)
+    output_hw =tf.keras.layers.Lambda( lambda x: K.sum(x, axis=1))(output_hw)
+    concat = tf.keras.layers.multiply([output_nn, output_hw])
+
+    model_no_weights= tf.keras.Model(inputs=[input_nn, input_hw], outputs=[concat])
+    return model_no_weights
+
+def PredictorModel_fewWeights():
+    max_blocks = 37
+    nb_param = 7
+    nb_hw_param = 12
+
+    input_nn = Input(shape=(max_blocks, nb_param),  name='input_nn')
+    input_hw = Input(shape=(nb_hw_param,),  name='input_hw')
+
+    G_nn= np.ones((37,7))
+    G_hw = np.ones((nb_hw_param,))
+
+    vec_nn = np.ones((7,1))
+
+    output_nn = layers.Dense(1, kernel_initializer='zeros') (input_nn)
+    #output_nn = layers.Dense(1, kernel_initializer=initializers.RandomNormal(stddev=0.01)) (input_nn)
+    output_nn =tf.keras.layers.Lambda( lambda x: K.sum(x, axis=1))(output_nn)
+    output_nn =tf.keras.layers.Lambda( lambda x: K.sum(x, axis=1))(output_nn)
+
+    output_hw = layers.Lambda(lambda x: x * G_hw)(input_hw)
+    output_hw =tf.keras.layers.Lambda( lambda x: K.sum(x, axis=1))(output_hw)
+
+    concat = tf.keras.layers.multiply([output_nn, output_hw])
+    concat = tf.keras.layers.Lambda( lambda x: x+6)(concat)
+
+    model_few_weights= tf.keras.Model(inputs=[input_nn, input_hw], outputs=[concat])
+    #model_path = "/Users/roxanefischer/Desktop/single_path_nas/single-path-nas/HAS/few_weights_0.794_error/few_weights"
+    import pdb
+    #pdb.set_trace()
+    #model_few_weights.load_weights(model_path)
+    return model_few_weights
