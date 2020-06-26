@@ -5,6 +5,7 @@ import re
 import csv
 import json
 import numpy as np
+from numpy import savetxt
 from tqdm import tqdm
 import math
 import ast
@@ -148,7 +149,8 @@ def save_architecture(model_to_save, path,save):
             rankdir='TB', expand_nested=False, dpi=70
         )
 
-def save_model(path, model, history, X_list, y, name='', nb_predictions = 100, max_val_loss=0.30, nb_final_epochs_for_mean = 3, save=True):
+def save_model(path, model, history, X_list, y, std, name='', nb_predictions = 100, max_val_loss=0.30, nb_final_epochs_for_mean = 3, save=True):
+
     test_performance = np.mean((history.history["val_loss"][-nb_final_epochs_for_mean:]))
     if test_performance <max_val_loss:
         path = f'{path}/{name}_{round(test_performance,3)}_error'
@@ -162,6 +164,8 @@ def save_model(path, model, history, X_list, y, name='', nb_predictions = 100, m
         plot_predictions(losses, preds, trues, index_low, index_middle, index_high, f'{path}',save)
         save_architecture(model, path,save)
         model.save_weights(f'{path}/{name}')
+        savetxt(f'{path}/std.csv', std,delimiter=',')
+
 
 
 

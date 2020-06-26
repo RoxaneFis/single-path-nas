@@ -11,10 +11,23 @@
 ---------------------------------
 </br>
 
---------------------------
 
-## Multiple Inputs
+# Multiple Inputs
 
+## Dense (on HW param): 
+
+### Dense 32 x Dense 32 x Dense 1
+
+1313 params : not learning
+
+
+
+|  Epochs |     Val_loss    |  Still done|
+|:--------------:|:------------------:|:----------------------:|
+|  |            | 
+
+
+## Conv1D :
 
 
 # Full Conv 1D
@@ -45,16 +58,32 @@ model_0= tf.keras.Sequential([
 
 
 
+## Model (32-3)-Drop-(64-1)-Drop-(32-3)-Drop-(1-3)
+
+Params : 15,937 </br>
+Drop = 0.1
+
+|  Epochs |     Val_loss    |  Still done|
+|:--------------:|:------------------:|:----------------------:|
+| 20 epochs | Best  **0.38**            | No 
 
 
-## Model 64-32-32 - BEST
+
+
+
+## Model 64-32-32 
+
+
+<img src="./architectures/(64-3)x(32-3)x(32-3)x(1-3)/architecture_11937_params.png"
+     alt="Markdown Monster icon" />
  
- Params : 11,937
+ Params : 11,937 </br>
+ Ini learning rate = 1e-2
 
 |  Epochs |     Val_loss    |  Still done| 
 |:--------------:|:------------------:|:----------------------:|
 | 5 |  **0.41**            | Yes |
-| 8 |  **0.33**            | Yes |
+| 8 |  **0.33**            | No |
 | Batchnorm |  **0.31**         | Unstable (sometimes 0.8) |
 
 
@@ -65,6 +94,21 @@ model_0= tf.keras.Sequential([
 <img src="./images/predictions_low_power.png"
      alt="Markdown Monster icon"
      title = "Predictions on big y" />
+
+
+
+## Model (128-12)x(8-2)x(32-6)x(1-3)
+
+<img src="./architectures/(128-12)x(8-2)x(32-6)x(1-3)/architecture.png"
+     alt="Markdown Monster icon" />
+
+ Params : 23,817 </br>
+ **Ini learning rate = 1e-1**
+
+|  Epochs |     Val_loss    |  Still done| 
+|:--------------:|:------------------:|:----------------------:|
+| 5 |  **0.41**            | Yes |
+
 
 
 

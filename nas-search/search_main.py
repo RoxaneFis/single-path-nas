@@ -406,26 +406,18 @@ def nas_model_fn(features, labels, mode, params):
       hw_array_random = tf.truncated_normal((1,12), stddev=1,seed=1, mean=0, dtype=tf.float32)
 
     # FIXME : where std is loaded
-    with tf.name_scope("nn_array"):
+    with tf.name_scope("NN_tensor"):
+
       def array_from_indicators():
         path_predictor_checkpoint = FLAGS.predictor_checkpoint
         dirname_predictor, filename_predictor = os.path.split(os.path.abspath(path_predictor_checkpoint))  
-        nn_array = TreatNeuralNetwork(*predictor_params, dirname_predictor).NN_to_array()
-        #Convert array to tesnor
-        for i in range(nn_array.shape[0]):
-            for j in range(nn_array.shape[1]):
-              nn_array[i][j] = tf.convert_to_tensor((nn_array[i][j],), dtype=tf.float32)
-              nn_array[i][j] = tf.reshape(nn_array[i][j], [1])
-        blocks = []
-        for i in range(nn_array.shape[0]):
-          blocks.append(tf.stack(list(nn_array[i]), axis=0))
-        nn_array = tf.stack(blocks)
-        nn_array = tf.reshape(nn_array,[1,37,7])
-        return nn_array
-      
+        NN_tensor = TreatNeuralNetwork(*predictor_params, dirname_predictor).NN_to_input()
+        NN_tensor = tf.reshape(NN_tensor,[1,tf.shape(NN_tensor)[0],tf.shape(NN_tensor)[1]])
+        return NN_tensor
 
-    nn_array = array_from_indicators()
-    power = predictor([nn_array, hw_array_test], training =False)
+
+    NN_tensor = array_from_indicators()
+    power = predictor([NN_tensor, hw_array_test], training =False)
     power_loss =  power *  1e3
     
 
@@ -441,9 +433,6 @@ def nas_model_fn(features, labels, mode, params):
 
   loss = power_loss
 
-
-  # if not (isinstance(global_step_tensor, variables.Variable) or
-  #         isinstance(global_step_tensor, ops.Tensor) or
 
 
   #Ema_vars : Variables to optimize. It doesn't contain the predictor weights and the global_step.
@@ -704,8 +693,8 @@ def nas_model_fn(features, labels, mode, params):
 
       eval_metrics = (metric_fn, [labels, logits])
 
-    num_params = np.sum([np.prod(v.shape) for v in tf.trainable_variables()])
-    tf.logging.warn('number of trainable parameters: {}'.format(num_params))
+   # num_params = np.sum([np.prod(v.shape) for v in tf.trainable_variables()])
+    #tf.logging.warn('number of trainable parameters: {}'.format(num_params))
 
           # g.get_operations()
       #tf.trainable_variables()

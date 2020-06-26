@@ -230,39 +230,67 @@ class TreatNeuralNetwork():
 
 
 
-    def add_zero_blocks(self,arr):
-        nb_zero_blocks = self.max_blocks-arr.shape[0]
-        # for ii in range(nb_zero_blocks):
-        #     self._blocks_to_keep.append
-
-        zero_blocks = np.zeros((nb_zero_blocks,arr.shape[1]))
-        return np.append(arr, zero_blocks, axis=0)
    
    
     # def complete_boolean_mask(self):
     #     nb_blocks = self.max_blocks - len(self._blocks_to_keep) # 22
     #     for i in 
 
-    def normalize(self, arr):
-        for i in range(arr.shape[1]): #nb of parameters
-            arr[:,i]/= self.std[i]
-        return arr
+    
+    def array_to_tensor(self, nn_array):
+       # nn_array = self.NN_to_array()
+        for i in range(nn_array.shape[0]):
+            for j in range(nn_array.shape[1]):
+              nn_array[i][j] = tf.convert_to_tensor((nn_array[i][j],), dtype=tf.float32)
+              nn_array[i][j] = tf.reshape(nn_array[i][j], [1])
+        blocks = []
+        for i in range(nn_array.shape[0]):
+          blocks.append(tf.stack(list(nn_array[i]), axis=0))
+        nn_array = tf.stack(blocks)
+        nn_array = tf.reshape(nn_array,[nn_array.shape[0],nn_array.shape[1]])
+        return nn_array
+    
+    def skip_blocks(self, NN_tensor):
+        #import pdb
+       # pdb.set_trace()
+        return tf.boolean_mask(NN_tensor, self._blocks_to_keep)
+
+
+    def add_zero_blocks(self, NN_tensor):
+       # NN_tensor = self.array_to_tensor()
+       # nb_zero_blocks = self.max_blocks-NN_tensor.shape[0]
+        nb_blocks = tf.shape(NN_tensor)[0]
+        nb_features =  tf.shape(NN_tensor)[1]
+        nb_zero_blocks = self.max_blocks-nb_blocks
+
+        zero_blocks = tf.zeros((nb_zero_blocks,nb_features), dtype=tf.float32)
+        tensor = tf.concat((NN_tensor, zero_blocks),axis=0)
+        return tensor
+
+
+    def normalize(self, NN_tensor):
+        normalized_columns =[]
+        for jj in range(NN_tensor.shape[1]): #nb of parameters
+            normalizing_std = tf.cast(1/self.std[jj], dtype=tf.float32)
+            normalized_column = tf.math.scalar_mul(normalizing_std, NN_tensor[:,jj])
+            normalized_columns.append(normalized_column)
+        NN_normalized_tensor = tf.stack(normalized_columns, axis=1)
+        return NN_normalized_tensor
 
 
 
-
-    def NN_to_array(self):
-
+    def NN_to_input(self):
         self.build_list()
         NN_frame = pd.DataFrame(self.list, columns = self.columns_names)
-        import pdb
-        pdb.set_trace()
-        numpy_array = self.treat_NN(NN_frame).to_numpy()
-        numpy_array = self.add_zero_blocks(numpy_array)
-        numpy_array = self.normalize(numpy_array)
-
-
-        return numpy_array
-
-
-       # tf.boolean_mask(self._blocks_to_keep, hw_array_random)
+        NN_numpy_array = self.treat_NN(NN_frame).to_numpy()
+        NN_tensor = self.array_to_tensor(NN_numpy_array)
+        NN_tensor = self.skip_blocks(NN_tensor) #taille plus petite
+        
+        NN_tensor = self.add_zero_blocks(NN_tensor)
+        NN_tensor_normalize = self.normalize(NN_tensor)
+        return NN_tensor_normalize
+        #return NN_tensor
+        
+       # numpy_array = self.add_zero_blocks(numpy_array)
+       # numpy_array = self.normalize(numpy_array)
+       # return numpy_array

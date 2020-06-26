@@ -25,28 +25,28 @@ def parse_indicators_single_path_nas(path, tf_size_guidance):
   return inds
 
 
-def convert_indicators(inds_row):
-    "Convert indicators to kernel, expand size"
-    if inds_row ==[0.0, 0.0, 0.0]:
-      k =None; exp = None; skip = True # skip 
-    elif inds_row == [0.0, 0.0, 1.0]:
-      k =None; exp = None; skip = True # skip
-    elif inds_row == [0.0, 1.0, 0.0]:
-      k =3; exp = 3; skip = False # 3x3-3
-    elif inds_row == [0.0, 1.0, 1.0]:
-      k =3; exp = 6; skip = False # 3x3-6
-    elif inds_row == [1.0, 0.0, 0.0]:
-      k =None; exp = None; skip = True # skip
-    elif inds_row == [1.0, 0.0, 1.0]:
-      k =None; exp = None; skip = True  # skip
-    elif inds_row == [1.0, 1.0, 0.0]:
-      k =5; exp = 3; skip = False # 5x5-3
-    elif inds_row == [1.0, 1.0, 1.0]:
-      k =5; exp = 6; skip = False # 5x5-6
-    else:
-      print("Wrong indicators values")
-      assert 0 == 1 # will crash
-    return k, exp, skip
+# def convert_indicators(inds_row):
+#     "Convert indicators to kernel, expand size"
+#     if inds_row ==[0.0, 0.0, 0.0]:
+#       k =None; exp = None; skip = True # skip 
+#     elif inds_row == [0.0, 0.0, 1.0]:
+#       k =None; exp = None; skip = True # skip
+#     elif inds_row == [0.0, 1.0, 0.0]:
+#       k =3; exp = 3; skip = False # 3x3-3
+#     elif inds_row == [0.0, 1.0, 1.0]:
+#       k =3; exp = 6; skip = False # 3x3-6
+#     elif inds_row == [1.0, 0.0, 0.0]:
+#       k =None; exp = None; skip = True # skip
+#     elif inds_row == [1.0, 0.0, 1.0]:
+#       k =None; exp = None; skip = True  # skip
+#     elif inds_row == [1.0, 1.0, 0.0]:
+#       k =5; exp = 3; skip = False # 5x5-3
+#     elif inds_row == [1.0, 1.0, 1.0]:
+#       k =5; exp = 6; skip = False # 5x5-6
+#     else:
+#       print("Wrong indicators values")
+#       assert 0 == 1 # will crash
+#     return k, exp, skip
 
 def encode_single_path_nas_arch(inds, hard=False):
 

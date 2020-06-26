@@ -71,7 +71,7 @@ EARLY STOP : Checkpoint 600 (0,768 epochs)
 # Main.py
 
 
-## Test v1 (GPU temporary borrowed - 12h)
+## Test v2 (no dropout/runtime loss)
 
 
 ### Architecure : Full 5x5-6 MBConvBlocks

@@ -18,7 +18,8 @@ parser.add_argument('-n', '--filename',
 args = parser.parse_args()
 
 # Create a task
-task = conn.create_task(args.filename, 'docker-nvidia-network', 1)
+#task = conn.create_task(args.filename, 'docker-nvidia-network', 1)
+task = conn.create_task(args.filename, 'docker-batch', 5)
 
 # Store if an error happened during the process
 error_happened = False
@@ -31,8 +32,8 @@ try:
     input_bucket.sync_directory("/Users/roxanefischer/Desktop/single_path_nas/single-path-nas")
 
     image_net = conn.retrieve_bucket('tiny-imagenet')
-    output_bucket = conn.retrieve_bucket('output')
-    #output_bucket = conn.retrieve_bucket('output-tiny-imagenet')
+    output_bucket = conn.retrieve_bucket('output-nas')
+    #output_bucket = conn.retrieve_bucket('output-nas-tiny-imagenet')
 
     # Create a result bucket and attach it to the task
 
@@ -46,7 +47,7 @@ try:
     task.constants["DOCKER_TAG"] = "1.12.0-gpu"
 
 
-    task.constants['DOCKER_CMD'] = "/bin/bash -c \"lambda_val=0.020; python /job/nas-search/search_main.py \
+    task.constants['DOCKER_CMD'] = "/bin/bash -c \"lambda_val=0.0; python /job/nas-search/search_main.py \
                                                             --use_tpu=False \
                                                             --data_dir=/job/image_net \
                                                             --model_dir=/job/models/lambda-val-${lambda_val} \
@@ -56,12 +57,13 @@ try:
                                                             --warmup_steps=491 \
                                                             --input_image_size=64 \
                                                             --eval_batch_size=1024 --train_batch_size=1024 \
-                                                            --num_train_images=100000 --num_eval_images=10000 \
+                                                            --num_train_images=100000 --num_eval_images=9832 \
                                                             --num_label_classes=200 \
+                                                            --transpose_input=True \
                                                             --steps_per_eval=80 --iterations_per_loop=10000 \
-                                                            --base_learning_rate=0.016 --momentum=0.9 \
+                                                            --momentum=0.9 \
                                                             --moving_average_decay=0.9999 --weight_decay=1e-5 \
-                                                            --label_smoothing=0.1 --dropout_rate=0.2 --runtime_lambda_val=${lambda_val}\""
+                                                            --label_smoothing=0.3 --dropout_rate=0.2 --runtime_lambda_val=${lambda_val}\""
 
     # Submit the task to the Api, that will launch it on the cluster
     task.submit()
@@ -95,8 +97,8 @@ try:
             print()
             print(sdout)
         
-        #sys.stdout.write(task.fresh_stdout())
-        #sys.stderr.write(task.fresh_stderr())
+        sys.stdout.write(task.fresh_stdout())
+        sys.stderr.write(task.fresh_stderr())
 
     # Display errors on failure
     if task.state == 'Failure':
@@ -104,8 +106,8 @@ try:
         error_happened = True
 
     else:
-        #task.download_results('output-tiny-imagenet')
-        task.download_results('output')
+        #task.download_results('output-nas-tiny-imagenet')
+        task.download_results('output-nas')
 
 finally:
     # Exit code in case of error

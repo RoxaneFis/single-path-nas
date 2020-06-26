@@ -419,6 +419,7 @@ class SinglePathSuperNet(tf.keras.Model):
     self.thresholds = {}
     self.norms = {}
     self.differences = {}
+    self._blocks_to_keep = [] # used to delete "skip" blocks
 
     # rest of runtime (i.e., stem, head, logits, block0, block21)
     # RF Logits?
@@ -430,6 +431,7 @@ class SinglePathSuperNet(tf.keras.Model):
           self._bn0(self._conv_stem(inputs), training=training))
     tf.logging.info('Built stem layers with output shape: %s' % outputs.shape)
     self.endpoints['stem'] = outputs
+    self._blocks_to_keep.append(True)
     # Calls blocks.
 
     # RF Added : custom blocks
@@ -451,13 +453,15 @@ class SinglePathSuperNet(tf.keras.Model):
     #   #Beggining : before EventAccumulator
     #   inds = [[1.0,1.0,1.0] for k in range(20)]
 
-    self._blocks_to_delete = []
-    self._blocks_to_delete.append(False) #block 0
+
     for idx, block in enumerate(self._blocks): # 22 : 1 a 21
       with tf.variable_scope('mnas_blocks_%s' % idx):
         outputs, total_runtime = block.call(outputs, total_runtime, training=training)
         self.endpoints['block_%s' % idx] = outputs
         # the indicator decisions 
+        if not block._depthwise_conv.custom:
+          self._blocks_to_keep.append(True) #block 0
+        
         if block._depthwise_conv.custom:
           self.indicators['block_%s' % idx] = {
                   'i5x5': block._depthwise_conv.d5x5,
@@ -478,7 +482,9 @@ class SinglePathSuperNet(tf.keras.Model):
           #update
           self._search_blocks[idx] = self._search_blocks[idx]._replace(kernel_size = k)
           self._search_blocks[idx] = self._search_blocks[idx]._replace(expand_ratio = exp)
-          self._blocks_to_delete.append(skip)
+          keep = tf.cond(skip, lambda: tf.constant(False),lambda: tf.constant(True))
+          self._blocks_to_keep.append(keep)
+         # self._blocks_to_keep.append(keep)
 
           #y = tf.where(skip, lambda : one, lambda : zero)
 
@@ -518,7 +524,7 @@ class SinglePathSuperNet(tf.keras.Model):
           for k, v in six.iteritems(block.endpoints):
             self.endpoints['block_%s/%s' % (idx, k)] = v
     #Block 22
-    self._blocks_to_delete.append(False)
+   # self._blocks_to_keep.append(True)
 
 
 
@@ -537,16 +543,17 @@ class SinglePathSuperNet(tf.keras.Model):
       outputs = tf.nn.relu(
           self._bn1(self._conv_head(outputs), training=training))
       outputs = self._avg_pooling(outputs)
+      self._blocks_to_keep.append(True)
       if self._dropout:
         outputs = self._dropout(outputs, training=training)
       outputs = self._fc(outputs)
       self.endpoints['head'] = outputs
-
+      self._blocks_to_keep.append(True)
     
   
   #   #print(f'SUM WEIGHTS SINGLEPATHNAS : {self.count_params()}')
   #  # predictor_params = [self._conv_stem,self._blocks,self._conv_head,self._global_params.num_classes]
-    predictor_params = [self._conv_stem,self._search_blocks,self._conv_head,self._global_params.num_classes, self._blocks_to_delete]
+    predictor_params = [self._conv_stem,self._search_blocks,self._conv_head,self._global_params.num_classes, self._blocks_to_keep]
 
   #     # PREDICTOR --------------------------------
   #   powers = {}
