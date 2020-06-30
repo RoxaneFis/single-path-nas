@@ -1,5 +1,5 @@
 *.pyc
-#*.csv
+*.csv
 samples.conf
 /qarnot_script/qarnot/*
 
