@@ -26,7 +26,6 @@ def Indicator(x):
   #           int32, int64, complex64, complex128
   #return tf.stop_gradient((x>=0) - tf.sigmoid(x)) + tf.sigmoid(x)
   return tf.stop_gradient(tf.to_float(x>=0) - tf.sigmoid(x)) + tf.sigmoid(x)
-#???? sigmoid
 
 def sample_gumbel(shape, eps=1e-20):
   U = tf.random_uniform(shape, minval=0, maxval=1)
@@ -74,8 +73,6 @@ class DepthwiseConv2DMasked(tf.keras.layers.DepthwiseConv2D):
 
 
   def build(self, input_shape):
-
-
     # NOTE: necessary for defining a Keras layer!
     # https://keras.io/layers/writing-your-own-keras-layers/
     # also need to build the superclass so that layer is populated w/ weights!
@@ -159,7 +156,8 @@ class DepthwiseConv2DMasked(tf.keras.layers.DepthwiseConv2D):
         self.d100c = Indicator(x100c) 
 
 
-      if self.strides[0] == 1 and len(self.runtimes) == 5:
+      if self.strides[0] == 1 : 
+      # and len(self.runtimes) == 5:
         ##NOTE : stride = 1 => skip-path
         x50c = self.norm50c - self.t50c
         self.x50c=x50c

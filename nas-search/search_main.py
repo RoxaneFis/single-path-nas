@@ -34,19 +34,6 @@ from predictor_parameters import TreatNeuralNetwork
 from predictor import Predictor, PredictorModel, PredictorModel_noWeights, PredictorModel_fewWeights
 
 
-# class RestoreHook(tf.train.SessionRunHook):
-#   def __init__(self, predictor):
-#       self.predictor = predictor
-
-#   def after_create_session(self, session, coord=None):
-#       if session.run(tf.train.get_or_create_global_step()) == 0:
-#           #tf.reset_default_graph()
-#           #tf.Graph().as_default()
-#           #self.predictor.
-#           self.predictor.load_weights( "/Users/roxanefischer/Desktop/single_path_nas/single-path-nas/HAS/few_weights_0.794_error/few_weights")
-
-
-
 FLAGS = flags.FLAGS
 FAKE_DATA_DIR = 'gs://cloud-tpu-test-datasets/fake_imagenet'
 
@@ -337,15 +324,14 @@ def nas_model_fn(features, labels, mode, params):
 
   global_step = tf.train.get_global_step()
   # FIXME
-  if global_step is None: #first call when just want to create the graph
+  if global_step is None: #RF : Needed for the first call when we just want to create the graph
     global_step = tf.Variable(1, dtype=tf.int64)
 
-  #RF before hardcoded 6255
-  warmup_steps = FLAGS.warmup_steps
-  #FIXME : overide dropout rate
+  warmup_steps = FLAGS.warmup_steps  #RF : before hardcoded 6255
   dropout_rate = nas_utils.build_dropout_rate(global_step, warmup_steps)
   g = tf.get_default_graph()
-  logits, runtime_val, predictor_params, variables = supernet_macro.build_supernet(
+
+  logits, runtime_val, predictor_params, variables = supernet_macro.build_supernet( #RF : return the parameters used for the predictor
       features,
       model_name=FLAGS.model_name,
       training=is_training,
@@ -353,14 +339,6 @@ def nas_model_fn(features, labels, mode, params):
       dropout_rate=dropout_rate,
       model_dir=FLAGS.model_dir)
 
-
-  # logits, runtime_val, power, variables = supernet_macro.build_supernet(
-  #     features,
-  #     model_name=FLAGS.model_name,
-  #     training=is_training,
-  #     override_params=override_params, 
-  #     dropout_rate=dropout_rate,
-  #     model_dir=FLAGS.model_dir)
 
   if mode == tf.estimator.ModeKeys.PREDICT:
     predictions = {
@@ -391,23 +369,22 @@ def nas_model_fn(features, labels, mode, params):
   runtime_loss = tf.reshape(runtime_loss, shape=cross_entropy.shape)
 
 
-  # PREDICTOR --------------------------------
-  powers = {}
+  # ------------------------ PREDICTOR --------------------------------
   #Load Neural Networks parameters - #FLOPS, #weights...
   with tf.name_scope("predictor_param"):
-    #predictor = PredictorModel_fewWeights()
     predictor = PredictorModel()
     predictor.trainable = False
 
-    with tf.name_scope("hw_array"):
+    with tf.name_scope("hw_array"): 
       hw_array_test = np.array([1.023785822261557565e-01,-4.262310244296395600e-01,2.295995016604397698e-01,-4.441886177106757483e-01,-8.459185226109141587e-01,-2.938802963497538223e-01,-3.464242712811745339e-01,4.572050514380619490e-01,-6.563799113750447001e-01,3.803529224492657179e-01,1.081335456679819673e+00,-2.117873165907936950e-01])
       hw_array_test = hw_array_test.reshape((1, *hw_array_test.shape))
       hw_array_test = tf.convert_to_tensor(hw_array_test, dtype=tf.float32)
-      hw_array_random = tf.truncated_normal((1,12), stddev=1,seed=1, mean=0, dtype=tf.float32)
+      # Hardware parameters used by Amir FIXME : load the scaler 
+      hw_amir = np.array([[ 0.10300963, -0.48979288,  0.51867322, -0.4441906 , -0.84587775, -0.32954354, -0.53673129,  0.70674844, -0.90670721,  0.07172266, 0.83927318, -0.35982882]])
+      hw_amir = hw_amir.reshape((1, *hw_amir.shape))
+      hw_amir = tf.convert_to_tensor(hw_amir, dtype=tf.float32)
 
-    # FIXME : where std is loaded
     with tf.name_scope("NN_tensor"):
-
       def array_from_indicators():
         path_predictor_checkpoint = FLAGS.predictor_checkpoint
         dirname_predictor, filename_predictor = os.path.split(os.path.abspath(path_predictor_checkpoint))  
@@ -417,26 +394,21 @@ def nas_model_fn(features, labels, mode, params):
 
 
     NN_tensor = array_from_indicators()
-    power = predictor([NN_tensor, hw_array_test], training =False)
-    power_loss =  power *  1e3
-    
+    power = predictor([NN_tensor, hw_amir], training =False)
+    power_loss =  power *  1e0 # FIXME : need to make some tries 
 
 
-
-  # !!!!!!!!!!!! be sure param not updated
+  # FIXME be sure predictor param are not updated
   #--------------------------------------------
   #Add weight decay to the loss for non-batch-normalization variables.
   # loss = cross_entropy + FLAGS.weight_decay * tf.add_n(
   #     [tf.nn.l2_loss(v) for v in tf.trainable_variables()
-  #      if 'batch_normalization' not in v.name]) + runtime_loss 
-
+  #      if 'batch_normalization' not in v.name and 'predictor' not in v.name]) + runtime_loss 
 
   loss = power_loss
 
 
-
   #Ema_vars : Variables to optimize. It doesn't contain the predictor weights and the global_step.
-  #ema_vars =[var for var in tf.trainable_variables() if "predictor" not in var.name]
   ema_vars = [var for var in tf.trainable_variables() if "predictor" not in var.name and var is not global_step]
   predictor_vars = [var for var in tf.trainable_variables() if "predictor" in var.name]
   if has_moving_average_decay:
@@ -446,8 +418,6 @@ def nas_model_fn(features, labels, mode, params):
 
     ema_vars += tf.get_collection('moving_vars')
     for v in tf.global_variables():
-      #if v.name == 'predictor_param/dense_1/kernel:0':
-        #cross_entropy =v
       # We maintain mva for batch norm moving mean and variance as well.
       if 'moving_mean' in v.name or 'moving_variance' in v.name:
         if "predictor" not in v.name:
@@ -455,22 +425,10 @@ def nas_model_fn(features, labels, mode, params):
     ema_vars = list(set(ema_vars))
 
 
-
-
-
-  # if params['inside']==True:
-
-  #   cross_entropy = predictor_vars[0][0][0][0]
-  #   dropout_rate = hw_array_test[0][0]
-
-
   with g.as_default():
-
     host_call = None
     restore_vars_dict = None
-
     if is_training:
-
       # Compute the current epoch and associated learning rate from global_step.
       current_epoch = (
           tf.cast(global_step, tf.float32) / params['steps_per_epoch'])
@@ -502,9 +460,8 @@ def nas_model_fn(features, labels, mode, params):
       with tf.control_dependencies([train_op]):
         train_op = ema.apply(ema_vars)
 
-    # <tf.Variable 'Variable:0' shape=() dtype=int64_ref>
 
-
+    # ------ RF added ------ : new tensorboard variables
     if not FLAGS.skip_host_call:#
         def host_call_fn(loss, dropout,gs, cross_entropy, lr, runtime, runtime_loss, power,
                 t5x5_1, t50c_1, t100c_1, t5x5_2, t50c_2, t100c_2, 
@@ -693,25 +650,17 @@ def nas_model_fn(features, labels, mode, params):
 
       eval_metrics = (metric_fn, [labels, logits])
 
-   # num_params = np.sum([np.prod(v.shape) for v in tf.trainable_variables()])
-    #tf.logging.warn('number of trainable parameters: {}'.format(num_params))
-
-          # g.get_operations()
-      #tf.trainable_variables()
-      #g = tf.get_default_graph()
-
 
   def _scaffold_fn():
     saver = tf.train.Saver(restore_vars_dict)
     return tf.train.Scaffold(saver=saver)
 
-  #ONLY CALLED BEFRE TRAINING
+  #----RF Added : called once before training in order to create the checkpoint and load the predictor weights 
   if params['inside']==False:
     global_step = tf.train.get_or_create_global_step()
     with tf.Session(graph=tf.get_default_graph()) as sess:
       # RESTORE PREDICTOR
       sess.run(tf.global_variables_initializer())
-     # model_path = "/Users/roxanefischer/Desktop/single_path_nas/single-path-nas/HAS/few_weights_0.794_error/few_weights"
       predictor.load_weights(FLAGS.predictor_checkpoint)
       saver_partial = tf.train.Saver( ) 
       saver_partial.save(sess, FLAGS.model_dir + "/predictor_checkpoint")
@@ -724,8 +673,8 @@ def nas_model_fn(features, labels, mode, params):
       train_op=train_op,
       host_call=host_call,
       eval_metrics=eval_metrics,
-      scaffold_fn = None)
-     # scaffold_fn=_scaffold_fn if has_moving_average_decay else None)
+     # scaffold_fn = None)
+      scaffold_fn=_scaffold_fn if has_moving_average_decay else None)
 
 
 def _verify_non_empty_string(value, field_name):
@@ -857,7 +806,6 @@ def main(unused_argv):
           .PER_HOST_V2))  # pylint: disable=line-too-long
   # Initializes model parameters.
   params = dict(steps_per_epoch=FLAGS.num_train_images / FLAGS.train_batch_size)
- # params['batch_size']=FLAGS.train_batch_size
   params['inside']=True
   nas_est = tf.contrib.tpu.TPUEstimator(
       use_tpu=FLAGS.use_tpu,
@@ -938,19 +886,19 @@ def main(unused_argv):
         FLAGS.train_steps / params['steps_per_epoch'], current_step)
 
     start_timestamp = time.time()  # This time will include compilation time
-        # g.get_operations()
-    #tf.trainable_variables()
-    #g = tf.get_default_graph()
+
     
     if FLAGS.mode == 'train':
       #First call to nas-search in order to load the pretrained pre
       features = tf.placeholder(dtype=tf.float32, shape=(224, 224, 3, 1))
       labels =  tf.placeholder(dtype=tf.int32, shape=(1,))
       params['batch_size']=FLAGS.train_batch_size
+
+       #-- RF added : create the graph in order to create the checkpoint for the predictor weigths
       params['inside']=False #false : call graph to restore predictor parameters
       call_graph = nas_model_fn(features, labels, FLAGS.mode, params)
       params['inside']=True
-          
+      #-- RF added
 
       hooks = []
 
@@ -972,9 +920,13 @@ def main(unused_argv):
       features = tf.placeholder(dtype=tf.float32, shape=(224, 224, 3, 1))
       labels =  tf.placeholder(dtype=tf.int32, shape=(1,))
       params['batch_size']=FLAGS.train_batch_size
+
+      #-- RF added : create the graph in order to create the checkpoint for the predictor weigths
       params['inside']=False #false : call graph to restore predictor parameters
       call_graph = nas_model_fn(features, labels, FLAGS.mode, params)
       params['inside']=True
+      #-- RF added
+
       while current_step < FLAGS.train_steps:
         # Train for up to steps_per_eval number of steps.
         # At the end of training, a checkpoint will be written to --model_dir.

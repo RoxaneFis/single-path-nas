@@ -32,11 +32,6 @@ from predictor import Predictor, PredictorModel
 
 
 
-#from parse_search_output import parse_indicators_single_path_nas
-
-import pdb
-#pdb.set_trace()
-
 GlobalParams = collections.namedtuple('GlobalParams', [
     'batch_norm_momentum', 'batch_norm_epsilon', 'dropout_rate', 'data_format',
     'num_classes', 'depth_multiplier', 'depth_divisor', 'min_depth', 'search_space',
@@ -116,7 +111,6 @@ def round_filters(filters, global_params):
 
 
 class MBConvBlock(object):
-  #pdb.set_trace()
   """A class of MnasNet/MobileNetV2 Inveretd Residual Bottleneck.
 
   Attributes:
@@ -147,6 +141,7 @@ class MBConvBlock(object):
     self.endpoints = None
     self.runtimes = layer_runtimes
     self.dropout_rate = dropout_rate
+    self.skip = False
 
     self._search_space = global_params.search_space
     # Builds the block accordings to arguments.
@@ -221,6 +216,14 @@ class MBConvBlock(object):
           padding='same',
           use_bias=True)
 
+
+    if self._block_args.id_skip:
+      if all(
+          s == 1 for s in self._block_args.strides
+      ) and self._block_args.input_filters == self._block_args.output_filters:
+        self.skip = True
+
+
     # Output phase:
     filters = self._block_args.output_filters
     self._project_conv = tf.keras.layers.Conv2D(
@@ -277,7 +280,7 @@ class MBConvBlock(object):
         x = self._call_se(x)
 
     self.endpoints = {'expansion_output': x}
-
+    
     x = self._bn2(self._project_conv(x), training=training)
     if self._block_args.id_skip:
       if all(
@@ -286,6 +289,10 @@ class MBConvBlock(object):
         x = tf.add(x, inputs)
     tf.logging.info('Project: %s shape: %s' % (x.name, x.shape))
     return x, runtime
+
+
+
+
 
 
 class SinglePathSuperNet(tf.keras.Model):
@@ -415,14 +422,12 @@ class SinglePathSuperNet(tf.keras.Model):
     outputs = None
     self.endpoints = {}
     self.indicators = {}
-    ##RF Added
+    ##RF Added : used to log more variables in tensorboard
     self.thresholds = {}
     self.norms = {}
     self.differences = {}
     self._blocks_to_keep = [] # used to delete "skip" blocks
 
-    # rest of runtime (i.e., stem, head, logits, block0, block21)
-    # RF Logits?
     total_runtime = 19.5999
 
     # Calls Stem layers
@@ -434,32 +439,15 @@ class SinglePathSuperNet(tf.keras.Model):
     self._blocks_to_keep.append(True)
     # Calls blocks.
 
-    # RF Added : custom blocks
-
-
-
-    # RF : deep copy of blocks to encode network + load indic by EventAccumluator
-    self._search_blocks=[BlockArgs(*block._block_args)  for block in self._blocks]
-    # tf_size_guidance = {
-    #   'compressedHistograms': 10,
-    #   'images': 0,
-    #   'scalars': 100,
-    #   'histograms': 1
-    # }
-    # try:
-    # # Pare EventAccumulator
-    #   inds = parse_indicators_single_path_nas(self._model_dir, tf_size_guidance)
-    # except Exception as err:
-    #   #Beggining : before EventAccumulator
-    #   inds = [[1.0,1.0,1.0] for k in range(20)]
-
-
-    for idx, block in enumerate(self._blocks): # 22 : 1 a 21
+   
+    self._search_blocks=[BlockArgs(*block._block_args)  for block in self._blocks] #used to retrieve the predictor parameters
+    self.skip_op = [block.skip for block in self._blocks] # skip operations by blocks
+  
+    for idx, block in enumerate(self._blocks): # 22 blocks
       with tf.variable_scope('mnas_blocks_%s' % idx):
         outputs, total_runtime = block.call(outputs, total_runtime, training=training)
         self.endpoints['block_%s' % idx] = outputs
-        # the indicator decisions 
-        if not block._depthwise_conv.custom:
+        if not block._depthwise_conv.custom: #keep this block for sure if it's not customable
           self._blocks_to_keep.append(True) #block 0
         
         if block._depthwise_conv.custom:
@@ -467,46 +455,22 @@ class SinglePathSuperNet(tf.keras.Model):
                   'i5x5': block._depthwise_conv.d5x5,
                   'i50c': block._depthwise_conv.d50c,
                   'i100c': block._depthwise_conv.d100c}
-          # The 20 personnalized ConvBlocks
-          assert (idx > 0 and idx < 21)
 
-          k, exp, skip = convert_indicators(block._depthwise_conv.d5x5, block._depthwise_conv.d50c, block._depthwise_conv.d100c) #first block (idx=0) is not customed
-          #k, exp, skip = convert_indicators(inds[idx-1]) #first block (idx=0) is not customed
-          # if skip == True:
-          #   del self._search_blocks[idx]
-          #   idx = idx -1
-          # else :
-          #   self._search_blocks[idx] = self._search_blocks[idx]._replace(kernel_size = k)
-          #   self._search_blocks[idx] = self._search_blocks[idx]._replace(expand_ratio = exp)
-
-          #update
-          self._search_blocks[idx] = self._search_blocks[idx]._replace(kernel_size = k)
+          assert (idx > 0 and idx < 21) # The 20 personnalized ConvBlocks
+          #-------RF added---------------
+          k, exp, skip = convert_indicators(block._depthwise_conv.d5x5, block._depthwise_conv.d50c, block._depthwise_conv.d100c) 
+          #replace the kernel and expand ratio with the found architecture
+          self._search_blocks[idx] = self._search_blocks[idx]._replace(kernel_size = k) 
           self._search_blocks[idx] = self._search_blocks[idx]._replace(expand_ratio = exp)
           keep = tf.cond(skip, lambda: tf.constant(False),lambda: tf.constant(True))
           self._blocks_to_keep.append(keep)
-         # self._blocks_to_keep.append(keep)
+          #-------RF added---------------
 
-          #y = tf.where(skip, lambda : one, lambda : zero)
-
-          #   import pdb
-          #   pdb.set_trace()
-
-          #   def add_delete_block(idx):
-          #     blocks_to_delete[idx]=1
-          #     #del self._search_blocks[idx]
-          #     #idx = idx -1
-          #     return skip
-          #   #add_delete_block_plus = lambda idx: add_delete_block(idx)
-          #   def update_block(idx):
-          #       self._search_blocks[idx] = self._search_blocks[idx]._replace(kernel_size = k)
-          #       self._search_blocks[idx] = self._search_blocks[idx]._replace(expand_ratio = exp)
-          #       return skip  
-          #  # update_block_plus = lambda idx: update_block(idx)
-          #   y = tf.case(skip, lambda :add_delete_block(idx), lambda : update_block(idx))
-           
+  
 
 
-          ## RF Added
+          ##----- RF Added--------
+          #more variable to log in tensorboard
           self.differences['block_%s' % idx] = {
                   'diff5x5': block._depthwise_conv.x5x5,
                   'diff50c': block._depthwise_conv.x50c,
@@ -519,25 +483,12 @@ class SinglePathSuperNet(tf.keras.Model):
                   'norm5x5': block._depthwise_conv.norm5x5,
                   'norm50c': block._depthwise_conv.norm50c,
                   'norm100c': block._depthwise_conv.norm100c}
+          ##----- RF Added--------
 
         if block.endpoints:
           for k, v in six.iteritems(block.endpoints):
             self.endpoints['block_%s/%s' % (idx, k)] = v
-    #Block 22
-   # self._blocks_to_keep.append(True)
 
-
-
-    # Calls final layers and returns logits.
-    #import pdb
-    #pdb.set_trace()
-    #delete blocks with skip connectionn
-
-
-
-    #self._search_blocks = tf.boolean_mask(self._search_blocks, np.array(blocks_to_delete))
-   #self._search_blocks = tf.ragged.boolean_mask(self._search_blocks, np.array(blocks_to_delete))
-    #self._search_blocks = [block  for ind, block in enumerate(self._search_blocks) if blocks_to_delete[ind]!=1 ]
 
     with tf.variable_scope('mnas_head'):
       outputs = tf.nn.relu(
@@ -550,67 +501,10 @@ class SinglePathSuperNet(tf.keras.Model):
       self.endpoints['head'] = outputs
       self._blocks_to_keep.append(True)
     
-  
-  #   #print(f'SUM WEIGHTS SINGLEPATHNAS : {self.count_params()}')
-  #  # predictor_params = [self._conv_stem,self._blocks,self._conv_head,self._global_params.num_classes]
-    predictor_params = [self._conv_stem,self._search_blocks,self._conv_head,self._global_params.num_classes, self._blocks_to_keep]
+    ##----- RF Added--------
+    predictor_params = [self._conv_stem,self._search_blocks,self._conv_head,self._global_params.num_classes, self._blocks_to_keep, self.skip_op]
+    ##----- RF Added--------
 
-  #     # PREDICTOR --------------------------------
-  #   powers = {}
-  #   #Load Neural Networks parameters - #FLOPS, #weights...
-  #   # FIXME : where std is loaded
-  #   TreatNN = TreatNeuralNetwork(*predictor_params)
-  #   with tf.variable_scope('nn_array'):
-  #     nn_array = TreatNN.NN_to_array()
-  #   # Convert array to tesnor
-  #     for i in range(nn_array.shape[0]):
-  #         for j in range(nn_array.shape[1]):
-  #           nn_array[i][j] = tf.convert_to_tensor((nn_array[i][j],), dtype=tf.float32)
-  #           nn_array[i][j] = tf.reshape(nn_array[i][j], [1])
-  #     blocks = []
-  #     for i in range(nn_array.shape[0]):
-  #       blocks.append(tf.stack(list(nn_array[i]), axis=0))
-  #     nn_array = tf.stack(blocks)
-  #     nn_array = tf.reshape(nn_array,[1,37,7])
-
-
-  #   model_path = "/Users/roxanefischer/Desktop/single_path_nas/single-path-nas/HAS/results_best_models/model_1_12161_param_0.131_error/model_1_plus_12161_param"
-   
-   
-  #   global graph
-  #   import random
-  #   graph = tf.get_default_graph()
-  #  # graph =  tf.Graph()
-  #   with graph.as_default():
-  #     predictor = PredictorModel()
-  #     predictor.load_weights(model_path)
-  #     #Load the different hardware parameters representation
-  #     hw_arrays = loadtxt('single-path-nas/HAS/params/hw_centroids.csv', delimiter=',')
-  #     for hw_array in hw_arrays: 
-  #       hw_array = np.array([ 0 , 0, 0,  0, 0, 0,0,0,0,0,0,0])
-  #       hw_array = hw_array.reshape((1, *hw_array.shape))
-  #       # import pdb
-  #       # pdb.set_trace()
-  #     #power = predictor.predict([nn_array, hw_array], steps=1)
-  #     power = predictor([nn_array, hw_array])
-  #       # except Exception as err : 
-  #     # nn_array = np.ones((1,37,7))
-  #     # for j in range(nn_array.shape[2]):
-  #     #   nn_array[0][0][j]=random.random()
-  #     # power = predictor.predict([nn_array, hw_array], steps=1)
-  #     print('----------------------------------')
-  #     print(nn_array)
-
-
-
-
-   
-    
-
-
-    #### self._blocks[0]._block_args !!!!!
-    # [self._blocks[i]._block_args for i in range(len(self._blocks))]
-    #return outputs, total_runtime, power
     return outputs, total_runtime, predictor_params
 
 
