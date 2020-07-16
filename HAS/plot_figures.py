@@ -39,7 +39,8 @@ def plot_loss(history, path, save):
         plt.savefig(f'{path}/loss.png', dpi=300, bbox_inches='tight')
 
 
-def predict(model,X_list, y,nb_predictions =100):
+def predict(model,X_list, y,nb_predictions =100, index=None):
+    np.random.seed(nb_predictions*3)
     y_pred_min = sys.float_info.max
     y_pred_max = 0
     nb_val = len(X_list[0])
@@ -56,7 +57,10 @@ def predict(model,X_list, y,nb_predictions =100):
             input_x=np.array(X_list[x])[i]
             input_x=input_x.reshape((1,*input_x.shape))
             inputs.append(tf.convert_to_tensor(input_x))
-        pred = model.predict(inputs)
+
+        pred = np.sum(model.predict(inputs))
+        if index != 2:
+            pred=model.predict(inputs)[0][index]
         if pred > y_pred_max:
             y_pred_max=pred
         if pred < y_pred_min:
@@ -83,10 +87,11 @@ def predict(model,X_list, y,nb_predictions =100):
     print(f'Mean loss on predictions : {np.mean(losses)}')
     return losses, preds, trues, index_low, index_middle, index_high
 
-def plot_predictions(losses, preds, trues, index_low, index_middle, index_high, prediction_path, save):
+def plot_predictions(losses, preds, trues, index_low, index_middle, index_high, prediction_path, save, index):
+    colors = {0 : 'cyan', 1: 'red', 2 : 'orange'}
     nb_pred = len(preds)
     plt.figure()
-    plt.plot(np.array(preds).reshape(nb_pred,-1))
+    plt.plot(np.array(preds).reshape(nb_pred,-1),color = colors[index])
     plt.plot(np.array(trues).reshape(nb_pred,-1))
     plt.title(f'All predictions. Mean loss on them : {round(np.mean(losses),2)}')
     plt.ylabel('predictions')
@@ -99,7 +104,7 @@ def plot_predictions(losses, preds, trues, index_low, index_middle, index_high, 
         plt.figure()
         preds_low = np.array(preds)[index_low].reshape(len(index_low),-1)
         trues_low = np.array(trues)[index_low].reshape(len(index_low),-1)
-        plt.plot(preds_low)
+        plt.plot(preds_low, color = colors[index])
         plt.plot(trues_low)
         plt.title(f'Low Value Predictions. Mean loss on them : {round(np.mean(loss(trues_low,preds_low)),2)}')
         plt.ylabel('predictions')
@@ -114,7 +119,7 @@ def plot_predictions(losses, preds, trues, index_low, index_middle, index_high, 
         plt.figure()
         preds_middle = np.array(preds)[index_middle].reshape(len(index_middle),-1)
         trues_middle = np.array(trues)[index_middle].reshape(len(index_middle),-1)
-        plt.plot(preds_middle)
+        plt.plot(preds_middle,color = colors[index])
         plt.plot(trues_middle)
         plt.title(f'Middle Value Predictions. Mean loss on them : {round(np.mean(loss(trues_middle,preds_middle)),2)}')
         plt.ylabel('predictions')
@@ -130,7 +135,7 @@ def plot_predictions(losses, preds, trues, index_low, index_middle, index_high, 
         plt.figure()
         preds_high = np.array(preds)[index_high].reshape(len(index_high),-1)
         trues_high = np.array(trues)[index_high].reshape(len(index_high),-1)
-        plt.plot(preds_high)
+        plt.plot(preds_high,color = colors[index])
         plt.plot(trues_high)
         plt.title(f'High Value Predictions. Mean loss on them : {round(np.mean(loss(trues_high,preds_high)),2)}')
         plt.ylabel('predictions')
@@ -146,10 +151,10 @@ def save_architecture(model_to_save, path,save):
     if save:
         tf.keras.utils.plot_model(
             model_to_save, to_file=f'{path}/architecture.png', show_shapes=True, show_layer_names=True,
-            rankdir='TB', expand_nested=False, dpi=70
+            rankdir='LR', expand_nested=False, dpi=70
         )
 
-def save_model(path, model, history, X_list, y, std, name='', nb_predictions = 100, max_val_loss=0.30, nb_final_epochs_for_mean = 3, save=True):
+def save_model(path, model, history, X_list, y, std, name='', nb_predictions = 100, max_val_loss=0.30, nb_final_epochs_for_mean = 3, save=True,index=None):
 
     test_performance = np.mean((history.history["val_loss"][-nb_final_epochs_for_mean:]))
     if test_performance <max_val_loss:
@@ -160,11 +165,14 @@ def save_model(path, model, history, X_list, y, std, name='', nb_predictions = 1
         except:
             print('Directory already exists')
         plot_loss(history, path,save)
-        losses, preds, trues, index_low, index_middle, index_high = predict(model, X_list, y,nb_predictions = nb_predictions)
-        plot_predictions(losses, preds, trues, index_low, index_middle, index_high, f'{path}',save)
+        losses, preds, trues, index_low, index_middle, index_high = predict(model, X_list, y,nb_predictions = nb_predictions,index=index)
+        plot_predictions(losses, preds, trues, index_low, index_middle, index_high, f'{path}',save,index)
         save_architecture(model, path,save)
         model.save_weights(f'{path}/{name}')
         savetxt(f'{path}/std.csv', std,delimiter=',')
+
+
+
 
 
 

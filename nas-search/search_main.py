@@ -31,7 +31,7 @@ from tensorflow.python.keras import backend as K
 
 #RF Added
 from predictor_parameters import TreatNeuralNetwork
-from predictor import Predictor, PredictorModel, PredictorModel_noWeights, PredictorModel_fewWeights
+from predictor import PredictorConv1D
 
 
 FLAGS = flags.FLAGS
@@ -372,7 +372,7 @@ def nas_model_fn(features, labels, mode, params):
   # ------------------------ PREDICTOR --------------------------------
   #Load Neural Networks parameters - #FLOPS, #weights...
   with tf.name_scope("predictor_param"):
-    predictor = PredictorModel()
+    predictor = PredictorConv1D()
     predictor.trainable = False
 
     with tf.name_scope("hw_array"): 
