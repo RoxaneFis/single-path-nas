@@ -28,7 +28,6 @@ import json
 # dstamoulis: definition of masked layer (DepthwiseConv2DMasked)
 from superkernel import *
 from predictor_parameters import TreatNeuralNetwork,convert_indicators 
-from predictor import Predictor, PredictorModel
 
 
 
@@ -462,6 +461,7 @@ class SinglePathSuperNet(tf.keras.Model):
           #replace the kernel and expand ratio with the found architecture
           self._search_blocks[idx] = self._search_blocks[idx]._replace(kernel_size = k) 
           self._search_blocks[idx] = self._search_blocks[idx]._replace(expand_ratio = exp)
+          
           keep = tf.cond(skip, lambda: tf.constant(False),lambda: tf.constant(True))
           self._blocks_to_keep.append(keep)
           #-------RF added---------------
@@ -499,7 +499,7 @@ class SinglePathSuperNet(tf.keras.Model):
         outputs = self._dropout(outputs, training=training)
       outputs = self._fc(outputs)
       self.endpoints['head'] = outputs
-      self._blocks_to_keep.append(True)
+      #self._blocks_to_keep.append(True)
     
     ##----- RF Added--------
     predictor_params = [self._conv_stem,self._search_blocks,self._conv_head,self._global_params.num_classes, self._blocks_to_keep, self.skip_op]

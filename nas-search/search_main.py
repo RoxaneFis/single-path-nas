@@ -30,8 +30,8 @@ from tensorflow.python.estimator import estimator
 from tensorflow.python.keras import backend as K
 
 #RF Added
-from predictor_parameters import TreatNeuralNetwork
-from predictor import PredictorConv1D
+from predictor_parameters import TreatNeuralNetwork, ModelToList
+from predictor import PredictorConv1D,PredictorRNN
 
 
 FLAGS = flags.FLAGS
@@ -70,8 +70,9 @@ flags.DEFINE_string(
     help=('The directory where the model and training/evaluation summaries are'
           ' stored.'))
 
+#Roxane Fischer Added--------
 flags.DEFINE_string(
-    'predictor_checkpoint', default='/Users/roxanefischer/Desktop/single_path_nas/single-path-nas/HAS/results_best_models/model_1_12161_param_0.131_error/model_1_plus_12161_param', 
+    'predictor_checkpoint', default='/Users/roxanefischer/Desktop/LSTM_3mult_32_117729_param_0.141_error/LSTM_3mult_32_117729_param', 
     help=('The checkpoint where the predictor is stored.'))
 
 
@@ -97,11 +98,11 @@ flags.DEFINE_integer(
     'warmup_steps', default=491,
     help=('Number of steps before end of dropout'))
 
+#Roxane Fischer Added--------
 flags.DEFINE_float(
     'decay_epochs',
     default=2.4,
     help=('Used to build learning rate. 2.4 when train batch size is1024.'))
-#Roxane Fischer Added--------
 
             
 flags.DEFINE_integer(
@@ -372,7 +373,8 @@ def nas_model_fn(features, labels, mode, params):
   # ------------------------ PREDICTOR --------------------------------
   #Load Neural Networks parameters - #FLOPS, #weights...
   with tf.name_scope("predictor_param"):
-    predictor = PredictorConv1D()
+    #predictor = PredictorConv1D()
+    predictor = PredictorRNN()
     predictor.trainable = False
 
     with tf.name_scope("hw_array"): 
@@ -381,17 +383,18 @@ def nas_model_fn(features, labels, mode, params):
       hw_array_test = tf.convert_to_tensor(hw_array_test, dtype=tf.float32)
       # Hardware parameters used by Amir FIXME : load the scaler 
       hw_amir = np.array([[ 0.10300963, -0.48979288,  0.51867322, -0.4441906 , -0.84587775, -0.32954354, -0.53673129,  0.70674844, -0.90670721,  0.07172266, 0.83927318, -0.35982882]])
-      hw_amir = hw_amir.reshape((1, *hw_amir.shape))
+      #hw_amir = hw_amir.reshape((1, *hw_amir.shape))
       hw_amir = tf.convert_to_tensor(hw_amir, dtype=tf.float32)
 
     with tf.name_scope("NN_tensor"):
       def array_from_indicators():
         path_predictor_checkpoint = FLAGS.predictor_checkpoint
         dirname_predictor, filename_predictor = os.path.split(os.path.abspath(path_predictor_checkpoint))  
+
         NN_tensor = TreatNeuralNetwork(*predictor_params, dirname_predictor).NN_to_input()
+        
         NN_tensor = tf.reshape(NN_tensor,[1,tf.shape(NN_tensor)[0],tf.shape(NN_tensor)[1]])
         return NN_tensor
-
 
     NN_tensor = array_from_indicators()
     power = predictor([NN_tensor, hw_amir], training =False)

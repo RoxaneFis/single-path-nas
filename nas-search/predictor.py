@@ -31,6 +31,7 @@ def PredictorRNN():
     nb_param = 7
     nb_hw_param = 12
     last_layer =128
+    output_shape = 1
     input_nn = Input(shape=(max_blocks, nb_param), dtype='float32', name='input_nn')
     input_hw = Input(shape=(nb_hw_param,), dtype='float32', name='input_hw')
 

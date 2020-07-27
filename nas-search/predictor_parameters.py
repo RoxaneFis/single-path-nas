@@ -87,7 +87,7 @@ class ModelToList():
         self._add_conv_stem()
         self._add_blocks()
         self._add_conv_head()
-        self._add_fc()
+       # self._add_fc()
 
             
 class TreatNeuralNetwork():
@@ -101,6 +101,7 @@ class TreatNeuralNetwork():
         self.max_blocks=37  # FIXME : hardcoded
         try :
             self.std = np.loadtxt('single-path-nas/nas-search/std.csv', delimiter=',')
+           # self.std=np.loadtxt('/Users/roxanefischer/Desktop/single_path_nas/single-path-nas/nas-search/std.csv', delimiter=',')
         except Exception as err :
             print("The standard deviation values used for normalising the predictor inputs are not found")
 
